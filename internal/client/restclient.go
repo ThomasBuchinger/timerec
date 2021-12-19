@@ -14,6 +14,8 @@ type RestClient struct {
 func (r *RestClient) httpCodeToError(code int) error {
 	if code == 400 {
 		return fmt.Errorf("400 - Bad Request")
+	} else if code == 404 {
+		return fmt.Errorf("404 - Not Found")
 	} else if code == 500 {
 		return fmt.Errorf("500 - Server Error")
 	} else {
@@ -22,10 +24,41 @@ func (r *RestClient) httpCodeToError(code int) error {
 
 }
 
+func (r *RestClient) SetActivity(name string, comment string, start_ts time.Time, end_ts time.Time) (api.Profile, error) {
+	roundTo5Minutes, _ := time.ParseDuration("5m")
+	roundedStart := start_ts.Round(roundTo5Minutes)
+	roundedEnd := end_ts.Round(roundTo5Minutes)
+
+	act := api.Profile{
+		ActivityName:    name,
+		ActivityComment: comment,
+		ActivityStart:   roundedStart,
+		ActivityTimer:   roundedEnd,
+	}
+	code, profile := server.SetActivity(act)
+	return profile, r.httpCodeToError(code)
+}
+
+func (r *RestClient) GetActivity() (api.Profile, error) {
+	code, profile := server.GetProfile()
+	return profile, r.httpCodeToError(code)
+}
+
+func (r *RestClient) ClearActivity() error {
+	code, _ := server.ClearActivity()
+	return r.httpCodeToError(code)
+}
+
+func (r *RestClient) ListTemplates() ([]api.RecordTemplate, error) {
+	code, templates := server.GetTemplates()
+	return templates, r.httpCodeToError(code)
+}
+
 func (r *RestClient) NewTask(name string) (api.Task, error) {
 	new := &api.Task{
-		Name:        name,
-		CustomerRef: "usual",
+		Name:           name,
+		RecordTemplate: api.RecordTemplate{},
+		Activities:     []api.TimeEntry{},
 	}
 
 	code, t := server.NewTask(*new)
@@ -51,33 +84,34 @@ func (r *RestClient) FindTaskByName(name string) (api.Task, bool, error) {
 	return api.Task{}, false, nil
 }
 
-func (r *RestClient) SetActivity(name string, start_ts time.Time, end_ts time.Time) (api.Profile, error) {
-	roundTo5Minutes, _ := time.ParseDuration("5m")
-	act := api.Profile{
-		ActivityName:  name,
-		ActivityStart: start_ts.Round(roundTo5Minutes),
-		ActivityTimer: end_ts.Round(roundTo5Minutes),
-	}
-	code, profile := server.SetActivity(act)
-	return profile, r.httpCodeToError(code)
+func (r *RestClient) UpdateTask(update api.Task) (api.Task, error) {
+	code, updated := server.UpdateTask(update)
+	return updated, r.httpCodeToError(code)
 }
 
-func (r *RestClient) GetActivity() (api.Profile, error) {
-	code, profile := server.GetProfile()
-	return profile, r.httpCodeToError(code)
+func (r *RestClient) Deleteask(toDelete api.Task) (api.Task, error) {
+	code, deleted := server.DeleteTask(toDelete)
+	return deleted, r.httpCodeToError(code)
 }
 
-func (r *RestClient) SaveRecords(records []api.Record) error {
+func (r *RestClient) AddActivityToTask(taskName string, comment string, start_ts time.Time, end_ts time.Time) (api.Task, error) {
 	roundTo5Minutes, _ := time.ParseDuration("5m")
-	for _, rec := range records {
-		rec.Start = rec.Start.Round(roundTo5Minutes)
-		rec.End = rec.End.Round(roundTo5Minutes)
-
-		code, _ := server.SaveRecord(rec)
-		err := r.httpCodeToError(code)
-		if err != nil {
-			return fmt.Errorf("Cannot Save Record: %s", rec.Name)
-		}
+	roundedStart := start_ts.Round(roundTo5Minutes)
+	roundedEnd := end_ts.Round(roundTo5Minutes)
+	task := api.Task{
+		Name: taskName,
+		Activities: []api.TimeEntry{{
+			Comment: comment,
+			Start:   roundedStart,
+			End:     roundedEnd,
+		}},
 	}
-	return nil
+
+	code, updated := server.UpdateTask(task)
+	return updated, r.httpCodeToError(code)
+}
+
+func (r *RestClient) SaveRecord(record api.Record) (api.Record, error) {
+	code, rec := server.SaveRecord(record)
+	return rec, r.httpCodeToError(code)
 }

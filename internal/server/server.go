@@ -1,65 +1,60 @@
 package server
 
 import (
+	"log"
+
 	"github.com/thomasbuchinger/timerec/api"
+	"github.com/thomasbuchinger/timerec/internal/server/providers"
 )
 
-type Storage interface {
+type TimerecServer struct {
+	logger        log.Logger
+	stateProvider State
+	backend       TimeService
+	chat          NotificationService
+}
+
+type State interface {
+	GetProfile() (api.Profile, error)
+	UpdateProfile(api.Profile) (api.Profile, error)
+
+	GetTemplates() ([]api.RecordTemplate, error)
+
 	CreateTask(api.Task) (api.Task, error)
-	GetTasks() ([]api.Task, error)
-	// UpdateTask(api.Task) (api.Task, error)
-	// DeleteTask(api.Task) (api.Task, error)
-
-	AddRecord(api.Record) (api.Record, error)
+	ListTasks() ([]api.Task, error)
+	GetTask(api.Task) (api.Task, error)
+	UpdateTask(api.Task) (api.Task, error)
+	DeleteTask(api.Task) (api.Task, error)
 }
 
-func GetProfile() (int, api.Profile) {
-	datasource := &FileStorage{}
-	data := datasource.load()
-
-	return 200, data.Profile
+type TimeService interface {
+	SaveRecord(api.Record) (api.Record, error)
 }
-func SetActivity(activity api.Profile) (int, api.Profile) {
-	datasource := &FileStorage{}
-	data := datasource.load()
-	data.Profile.ActivityName = activity.ActivityName
-	data.Profile.ActivityStart = activity.ActivityStart
-	data.Profile.ActivityTimer = activity.ActivityTimer
-	datasource.store(data)
-
-	return 200, data.Profile
+type NotificationService interface {
+	// Different Services might have vastly different ideas how messages should look like
+	// Events aim to be a very generic interface
+	NotifyUser(api.Event) error
 }
 
-func NewTask(t api.Task) (int, api.Task) {
-	var datasource Storage
-	datasource = &FileStorage{}
+func NewServer() TimerecServer {
+	logger := log.Default()
+	fileBackend := &providers.FileProvider{}
+	// noop := &providers.NoopProvider{}
+	rocket := providers.NewRocketChatMessenger()
 
-	ret, err := datasource.CreateTask(t)
-	if err != nil {
-		return 500, ret
+	return TimerecServer{
+		logger:        *logger,
+		stateProvider: fileBackend,
+		backend:       fileBackend,
+		chat:          &rocket,
 	}
-	return 200, ret
 }
 
-func ListTasks() (int, []api.Task) {
-	var datasource Storage
-	datasource = &FileStorage{}
-
-	ret, err := datasource.GetTasks()
-	if err != nil {
-		return 500, ret
+func MakeEvent(name, message, target, user string) api.Event {
+	return api.Event{
+		Name:    name,
+		Message: message,
+		Target:  target,
+		User:    "me",
 	}
-	return 200, ret
-}
-
-func SaveRecord(rec api.Record) (int, api.Record) {
-	var datasource Storage
-	datasource = &FileStorage{}
-
-	ret, err := datasource.AddRecord(rec)
-	if err != nil {
-		return 500, ret
-	}
-	return 200, ret
-
 }
