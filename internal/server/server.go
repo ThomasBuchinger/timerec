@@ -1,8 +1,10 @@
 package server
 
 import (
+	"fmt"
 	"log"
 
+	"github.com/spf13/viper"
 	"github.com/thomasbuchinger/timerec/api"
 	"github.com/thomasbuchinger/timerec/internal/server/providers"
 )
@@ -12,6 +14,10 @@ type TimerecServer struct {
 	stateProvider State
 	backend       TimeService
 	chat          NotificationService
+}
+
+type TimerecServerConfig struct {
+	rocket providers.RocketChatConfig
 }
 
 type State interface {
@@ -39,14 +45,25 @@ type NotificationService interface {
 func NewServer() TimerecServer {
 	logger := log.Default()
 	fileBackend := &providers.FileProvider{}
-	// noop := &providers.NoopProvider{}
-	rocket := providers.NewRocketChatMessenger()
+	var chatService NotificationService
+
+	var rocketConfig providers.RocketChatConfig
+	err := viper.UnmarshalKey("rocketchat", &rocketConfig)
+	fmt.Println(rocketConfig)
+	if err == nil {
+		rocket := providers.NewRocketChatMessenger(rocketConfig)
+		chatService = &rocket
+		logger.Println("Using RocketChat NotificationService")
+	} else {
+		chatService = &providers.NoopProvider{}
+		logger.Println("Using Noop NotificationService")
+	}
 
 	return TimerecServer{
 		logger:        *logger,
 		stateProvider: fileBackend,
 		backend:       fileBackend,
-		chat:          &rocket,
+		chat:          chatService,
 	}
 }
 

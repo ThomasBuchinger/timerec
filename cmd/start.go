@@ -24,10 +24,11 @@ Example:
 `,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		est, err := cmd.Flags().GetDuration("est")
-		if err != nil && est != -1 {
-			est = defaultEstimate
-			fmt.Printf("No Esimate given, using default %s\n", defaultEstimate.String())
+		est, err1 := cmd.Flags().GetDuration("est")
+		defaultEst, err2 := cmd.Flags().GetDuration("default-estimate")
+		if err1 != nil && est != -1 && err2 == nil {
+			est = defaultEst
+			fmt.Printf("No Esimate given, using default %s\n", defaultEst.String())
 		}
 		start, err1 := cmd.Flags().GetDuration("start")
 		if err1 != nil {

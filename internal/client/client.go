@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	"github.com/spf13/viper"
+	"github.com/thomasbuchinger/timerec/api"
 )
 
 type ClientObject struct {
@@ -124,7 +127,9 @@ func (c *ClientObject) UpdateTask(name, template, title, description, project, t
 		c.Panic(18, "task does not exist", nil)
 	}
 
-	templates, err := c.restclient.ListTemplates()
+	var templates []api.RecordTemplate
+	err = viper.UnmarshalKey("templates", &templates)
+	// templates, err := c.restclient.ListTemplates()
 	if err != nil {
 		c.Panic(19, "unable to fetch templates", err)
 	}

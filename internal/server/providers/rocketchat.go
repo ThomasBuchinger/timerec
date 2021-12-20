@@ -28,8 +28,7 @@ type RocketChatConfig struct {
 	MessageTemplates map[string]string `yaml:"messageTemplates"`
 }
 
-func NewRocketChatMessenger() RocketChatMessenger {
-	config := loadRocketConfig()
+func NewRocketChatMessenger(config RocketChatConfig) RocketChatMessenger {
 	logger := log.New(os.Stdout, config.Settings.LoggerPrefix, 0)
 
 	rocket := RocketChatMessenger{

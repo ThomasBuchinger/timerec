@@ -13,7 +13,6 @@ import (
 
 var cfgFile string
 var cli client.ClientObject
-var defaultEstimate time.Duration
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -33,7 +32,8 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.timerec.yaml)")
-	rootCmd.PersistentFlags().DurationVar(&defaultEstimate, "default-estimate", time.Duration(0), "Set default value for estimates (useful to configure in config file)")
+	rootCmd.PersistentFlags().Duration("default-estimate", time.Duration(0), "Set default value for estimates (useful to configure in config file)")
+	viper.BindPFlag("settings.default_estimate", rootCmd.Flags().Lookup("default-estimate"))
 
 	cli = client.NewClient()
 }
@@ -49,9 +49,12 @@ func initConfig() {
 		cobra.CheckErr(err)
 
 		// Search config in home directory with name ".timerec" (without extension).
+		currentDir, _ := os.Getwd()
 		viper.AddConfigPath(home)
+		viper.AddConfigPath(currentDir)
 		viper.SetConfigType("yaml")
 		viper.SetConfigName(".timerec")
+		viper.SetConfigName("timerec-config.yaml")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
