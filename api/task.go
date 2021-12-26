@@ -38,7 +38,7 @@ func (t *Task) Validate() error {
 	if t.RecordTemplate.Title == "" {
 		return fmt.Errorf("title cannot be empty")
 	}
-	if t.RecordTemplate.Description == "" || missingCommentsInActivities {
+	if t.RecordTemplate.Description == "" && missingCommentsInActivities {
 		return fmt.Errorf("description cannot be empty")
 	}
 	if t.RecordTemplate.Project == "" {

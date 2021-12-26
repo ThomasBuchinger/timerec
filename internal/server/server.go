@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/spf13/viper"
@@ -49,14 +48,13 @@ func NewServer() TimerecServer {
 
 	var rocketConfig providers.RocketChatConfig
 	err := viper.UnmarshalKey("rocketchat", &rocketConfig)
-	fmt.Println(rocketConfig)
 	if err == nil {
 		rocket := providers.NewRocketChatMessenger(rocketConfig)
 		chatService = &rocket
-		logger.Println("Using RocketChat NotificationService")
+		// logger.Println("Using RocketChat NotificationService")
 	} else {
 		chatService = &providers.NoopProvider{}
-		logger.Println("Using Noop NotificationService")
+		// logger.Println("Using Noop NotificationService")
 	}
 
 	return TimerecServer{

@@ -14,7 +14,7 @@ var extendActivityCmd = &cobra.Command{
 	Example: `  # Almost finished, just need 30m to update the PullRequest
   timerec extend --est 30m
 	`,
-	Args: cobra.ArbitraryArgs,
+	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		est, err1 := cmd.Flags().GetDuration("est")
 		if err1 != nil {
