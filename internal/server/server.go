@@ -25,11 +25,11 @@ type State interface {
 
 	GetTemplates() ([]api.RecordTemplate, error)
 
-	CreateTask(api.Task) (api.Task, error)
-	ListTasks() ([]api.Task, error)
-	GetTask(api.Task) (api.Task, error)
-	UpdateTask(api.Task) (api.Task, error)
-	DeleteTask(api.Task) (api.Task, error)
+	CreateWorkItem(api.WorkItem) (api.WorkItem, error)
+	ListWorkItems() ([]api.WorkItem, error)
+	GetWorkItem(api.WorkItem) (api.WorkItem, error)
+	UpdateWorkItem(api.WorkItem) (api.WorkItem, error)
+	DeleteWorkItem(api.WorkItem) (api.WorkItem, error)
 }
 
 type TimeService interface {

@@ -8,11 +8,11 @@ import (
 )
 
 var extendActivityCmd = &cobra.Command{
-	Use:   "extend --est ESTIMATE [COMMENT]",
-	Short: "Set a new estimate for your current task.",
-	Long:  `Set a new estimate for your currently active Task and restart the timer.`,
-	Example: `  # Almost finished, just need 30m to update the PullRequest
-  timerec extend --est 30m
+	Use:   "extend NAME --est ESTIMATE [COMMENT]",
+	Short: "Set a new estimate for your current workitem.",
+	Long:  `Set a new estimate for your currently workitem Task and restart the timer.`,
+	Example: `  # Not finished yet, but probably in about an hour
+  timerec extend TICKET-13 --est 1h
 	`,
 	Args: cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {

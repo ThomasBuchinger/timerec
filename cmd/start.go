@@ -9,12 +9,12 @@ import (
 )
 
 var startTaskCmd = &cobra.Command{
-	Use:   "start NAME --start START [--est ESTIMATE] [additinal args are interpreted as comment]",
-	Short: "Start to work on a task",
-	Long: `Record when work on this task was started. This will automatically set the NAME as your active Task
+	Use:   "start NAME --start START [--est ESTIMATE] [COMMENT]",
+	Short: "Start to work on a workitem",
+	Long: `Record when work on this item was started. This will automatically set the NAME as your active item
 
-If no task with this name exists, a basic task-object will be created.
-Use '--start' and '--est' to record the begin and estimated finish , relative to right now.
+If no workitem with this name exists, a basic workitem-object will be created.
+Use '--start' and '--est' to record the begin and estimated time to finish, relative to right now.
 '--est' has no effect, except reminding you to finish the task or update your estimate
 
 
@@ -35,7 +35,7 @@ Example:
 			cli.Panic(1, "CLI parse error ", err1)
 		}
 
-		cli.EnsureTaskExists(args[0])
+		cli.EnsureWorkItemkExists(args[0])
 		EditTaskRun(cmd, args)
 		cli.StartActivity(args[0], strings.Join(args[1:], " "), start, est)
 	},

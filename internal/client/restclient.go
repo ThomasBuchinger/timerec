@@ -54,26 +54,26 @@ func (r *RestClient) ListTemplates() ([]api.RecordTemplate, error) {
 	return templates, r.httpCodeToError(code)
 }
 
-func (r *RestClient) NewTask(name string) (api.Task, error) {
-	new := &api.Task{
+func (r *RestClient) NewWorkItem(name string) (api.WorkItem, error) {
+	new := &api.WorkItem{
 		Name:           name,
 		RecordTemplate: api.RecordTemplate{},
 		Activities:     []api.TimeEntry{},
 	}
 
-	code, t := server.NewTask(*new)
+	code, t := server.NewWorkItem(*new)
 	return t, r.httpCodeToError(code)
 }
 
-func (r *RestClient) ListTasks() ([]api.Task, error) {
-	code, list := server.ListTasks()
+func (r *RestClient) ListWorkItems() ([]api.WorkItem, error) {
+	code, list := server.ListWorkItems()
 	return list, r.httpCodeToError(code)
 }
 
-func (r *RestClient) FindTaskByName(name string) (api.Task, bool, error) {
-	list, err := r.ListTasks()
+func (r *RestClient) FindWorkItemByName(name string) (api.WorkItem, bool, error) {
+	list, err := r.ListWorkItems()
 	if err != nil {
-		return api.Task{}, false, err
+		return api.WorkItem{}, false, err
 	}
 
 	for _, task := range list {
@@ -81,24 +81,24 @@ func (r *RestClient) FindTaskByName(name string) (api.Task, bool, error) {
 			return task, true, nil
 		}
 	}
-	return api.Task{}, false, nil
+	return api.WorkItem{}, false, nil
 }
 
-func (r *RestClient) UpdateTask(update api.Task) (api.Task, error) {
-	code, updated := server.UpdateTask(update)
+func (r *RestClient) UpdateWorkItem(update api.WorkItem) (api.WorkItem, error) {
+	code, updated := server.UpdateWorkItems(update)
 	return updated, r.httpCodeToError(code)
 }
 
-func (r *RestClient) Deleteask(toDelete api.Task) (api.Task, error) {
-	code, deleted := server.DeleteTask(toDelete)
+func (r *RestClient) DeleteWorkItem(toDelete api.WorkItem) (api.WorkItem, error) {
+	code, deleted := server.DeleteWorkItems(toDelete)
 	return deleted, r.httpCodeToError(code)
 }
 
-func (r *RestClient) AddActivityToTask(taskName string, comment string, start_ts time.Time, end_ts time.Time) (api.Task, error) {
+func (r *RestClient) AddActivityToWorkItem(taskName string, comment string, start_ts time.Time, end_ts time.Time) (api.WorkItem, error) {
 	roundTo5Minutes, _ := time.ParseDuration("5m")
 	roundedStart := start_ts.Round(roundTo5Minutes)
 	roundedEnd := end_ts.Round(roundTo5Minutes)
-	task := api.Task{
+	task := api.WorkItem{
 		Name: taskName,
 		Activities: []api.TimeEntry{{
 			Comment: comment,
@@ -107,7 +107,7 @@ func (r *RestClient) AddActivityToTask(taskName string, comment string, start_ts
 		}},
 	}
 
-	code, updated := server.UpdateTask(task)
+	code, updated := server.UpdateWorkItems(task)
 	return updated, r.httpCodeToError(code)
 }
 

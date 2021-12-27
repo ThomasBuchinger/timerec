@@ -6,10 +6,10 @@ import (
 
 var editTaskCmd = &cobra.Command{
 	Use:   "edit NAME",
-	Short: "Edit a task",
-	Long: `Tasks can be worked on with only a name. BUT more details are required to save them permanently
+	Short: "Edit a WorkItem",
+	Long: `WorkItems can be worked on with only a name. BUT more details are required to save them permanently
 
-To update an existing task
+To update an existing WorkItem
 `,
 	Example: `  #
   timerec edit TICKET-13 --template my-project -n --description ""
@@ -51,7 +51,7 @@ func EditTaskRun(cmd *cobra.Command, args []string) {
 		title = args[0]
 	}
 
-	cli.EnsureTaskExists(args[0])
-	cli.UpdateTask(args[0], template, title, description, project, taskInProject)
+	cli.EnsureWorkItemkExists(args[0])
+	cli.UpdateWorkItem(args[0], template, title, description, project, taskInProject)
 
 }

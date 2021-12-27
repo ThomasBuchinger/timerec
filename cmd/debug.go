@@ -9,7 +9,7 @@ import (
 )
 
 var debugCmd = &cobra.Command{
-	Use:   "debug profile|tasks|templates",
+	Use:   "debug profile|items|templates",
 	Short: "Shows API objects",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -20,8 +20,8 @@ var debugCmd = &cobra.Command{
 		switch args[0] {
 		case "profile":
 			response, err = rest.GetActivity()
-		case "tasks":
-			response, err = rest.ListTasks()
+		case "items":
+			response, err = rest.ListWorkItems()
 		case "templates":
 			response, err = rest.ListTemplates()
 		}

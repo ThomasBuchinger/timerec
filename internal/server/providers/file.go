@@ -14,7 +14,7 @@ type FileProvider struct {
 type FileData struct {
 	Profile   api.Profile
 	Templates []api.RecordTemplate
-	Tasks     map[string]api.Task
+	Tasks     map[string]api.WorkItem
 	Records   []api.Record
 }
 
@@ -36,11 +36,11 @@ func (store *FileProvider) GetTemplates() ([]api.RecordTemplate, error) {
 	return data.Templates, nil
 }
 
-func (store *FileProvider) CreateTask(t api.Task) (api.Task, error) {
+func (store *FileProvider) CreateWorkItem(t api.WorkItem) (api.WorkItem, error) {
 	data := store.load()
 	for name := range data.Tasks {
 		if name == t.Name {
-			return api.Task{}, fmt.Errorf("CONFLICT")
+			return api.WorkItem{}, fmt.Errorf("CONFLICT")
 		}
 	}
 	data.Tasks[t.Name] = t
@@ -48,9 +48,9 @@ func (store *FileProvider) CreateTask(t api.Task) (api.Task, error) {
 	return t, nil
 }
 
-func (store *FileProvider) ListTasks() ([]api.Task, error) {
+func (store *FileProvider) ListWorkItems() ([]api.WorkItem, error) {
 	data := store.load()
-	taskList := []api.Task{}
+	taskList := []api.WorkItem{}
 	for _, task := range data.Tasks {
 		taskList = append(taskList, task)
 	}
@@ -58,24 +58,24 @@ func (store *FileProvider) ListTasks() ([]api.Task, error) {
 	return taskList, nil
 }
 
-func (store *FileProvider) GetTask(t api.Task) (api.Task, error) {
+func (store *FileProvider) GetWorkItem(t api.WorkItem) (api.WorkItem, error) {
 	data := store.load()
 	for k, task := range data.Tasks {
 		if k == t.Name {
 			return task, nil
 		}
 	}
-	return api.Task{}, fmt.Errorf("NOT_FOUND")
+	return api.WorkItem{}, fmt.Errorf("NOT_FOUND")
 }
 
-func (store *FileProvider) UpdateTask(t api.Task) (api.Task, error) {
+func (store *FileProvider) UpdateWorkItem(t api.WorkItem) (api.WorkItem, error) {
 	data := store.load()
 	data.Tasks[t.Name] = t
 	store.store(data)
 	return t, nil
 }
 
-func (store *FileProvider) DeleteTask(t api.Task) (api.Task, error) {
+func (store *FileProvider) DeleteWorkItem(t api.WorkItem) (api.WorkItem, error) {
 	data := store.load()
 	for _, existing_task := range data.Tasks {
 		if existing_task.Name == t.Name {
@@ -84,7 +84,7 @@ func (store *FileProvider) DeleteTask(t api.Task) (api.Task, error) {
 			return existing_task, nil
 		}
 	}
-	return api.Task{}, fmt.Errorf("NOT_FOUND")
+	return api.WorkItem{}, fmt.Errorf("NOT_FOUND")
 }
 
 func (store *FileProvider) SaveRecord(rec api.Record) (api.Record, error) {

@@ -9,8 +9,8 @@ import (
 
 var finTaskCmd = &cobra.Command{
 	Use:   "fin NAME --end END [COMMENT]",
-	Short: "Finish a task and record the time spent on it",
-	Long:  `Finishing a Task will actually log the time in clockodo.`,
+	Short: "Finish a workitem and record the time spent on it",
+	Long:  `Finishing a workitem will actually log the time in clockodo.`,
 	Example: `
 # Going to finish working on TICKET-13 in 10 minutes, just have to write a nice commit message
 ./timerec fin TICKET-13 --end 10m
@@ -24,7 +24,7 @@ var finTaskCmd = &cobra.Command{
 
 		EditTaskRun(cmd, args)
 		cli.FinishActivity(args[0], args[0], strings.Join(args[1:], " "), endDuration)
-		cli.CompleteTask(args[0])
+		cli.CompleteWorkItem(args[0])
 	},
 }
 

@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type Task struct {
+type WorkItem struct {
 	Name           string    `yaml:"task_name"`
 	CreatedAt      time.Time `yaml:"created,omitempty"`
 	RecordTemplate `yaml:",inline"`
@@ -27,7 +27,7 @@ type TimeEntry struct {
 	End     time.Time `yaml:"end,omitempty"`
 }
 
-func (t *Task) Validate() error {
+func (t *WorkItem) Validate() error {
 	var missingCommentsInActivities bool = false
 	for _, act := range t.Activities {
 		if act.Comment == "" {
@@ -50,7 +50,7 @@ func (t *Task) Validate() error {
 	return nil
 }
 
-func (t *Task) ConvertToRecords() []Record {
+func (t *WorkItem) ConvertToRecords() []Record {
 	var records []Record
 
 	for _, activity := range t.Activities {
@@ -73,7 +73,7 @@ func (t *Task) ConvertToRecords() []Record {
 	return records
 }
 
-func (t *Task) Update(new Task) error {
+func (t *WorkItem) Update(new WorkItem) error {
 	if new.RecordTemplate.Title != "" {
 		t.RecordTemplate.Title = new.RecordTemplate.Title
 	}
@@ -96,7 +96,7 @@ func (t *Task) Update(new Task) error {
 	}
 	return nil
 }
-func (t *Task) AddActivity(new_activity TimeEntry) error {
+func (t *WorkItem) AddActivity(new_activity TimeEntry) error {
 	for _, existing_activity := range t.Activities {
 		if new_activity.Start == existing_activity.Start && new_activity.End == existing_activity.End {
 			if new_activity.Comment != "" {

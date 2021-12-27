@@ -59,60 +59,60 @@ func GetTemplates() (int, []api.RecordTemplate) {
 	return 200, ret
 }
 
-func NewTask(new api.Task) (int, api.Task) {
+func NewWorkItem(new api.WorkItem) (int, api.WorkItem) {
 	mgr := NewServer()
-	allTasks, err := mgr.stateProvider.ListTasks()
+	allTasks, err := mgr.stateProvider.ListWorkItems()
 	if err != nil {
-		return 500, api.Task{}
+		return 500, api.WorkItem{}
 	}
 
 	for _, t := range allTasks {
 		if new.Name == t.Name {
 			// CONFLICT
-			return 500, api.Task{}
+			return 500, api.WorkItem{}
 		}
 	}
 
 	new.CreatedAt = time.Now()
-	ret, err := mgr.stateProvider.CreateTask(new)
+	ret, err := mgr.stateProvider.CreateWorkItem(new)
 	if err != nil {
 		return 500, ret
 	}
 	return 200, ret
 }
 
-func ListTasks() (int, []api.Task) {
+func ListWorkItems() (int, []api.WorkItem) {
 	mgr := NewServer()
 
-	ret, err := mgr.stateProvider.ListTasks()
+	ret, err := mgr.stateProvider.ListWorkItems()
 	if err != nil {
 		return 500, ret
 	}
 	return 200, ret
 }
 
-func UpdateTask(t api.Task) (int, api.Task) {
+func UpdateWorkItems(t api.WorkItem) (int, api.WorkItem) {
 	mgr := NewServer()
 
-	old, err := mgr.stateProvider.GetTask(t)
+	old, err := mgr.stateProvider.GetWorkItem(t)
 	if err != nil {
-		return 404, api.Task{}
+		return 404, api.WorkItem{}
 	}
 
 	old.Update(t)
-	updated, err := mgr.stateProvider.UpdateTask(old)
+	updated, err := mgr.stateProvider.UpdateWorkItem(old)
 	if err != nil {
-		return 500, api.Task{}
+		return 500, api.WorkItem{}
 	}
 	return 200, updated
 }
 
-func DeleteTask(t api.Task) (int, api.Task) {
+func DeleteWorkItems(t api.WorkItem) (int, api.WorkItem) {
 	mgr := NewServer()
 
-	deleted, err := mgr.stateProvider.DeleteTask(t)
+	deleted, err := mgr.stateProvider.DeleteWorkItem(t)
 	if err != nil {
-		return 500, api.Task{}
+		return 500, api.WorkItem{}
 	}
 	return 200, deleted
 }

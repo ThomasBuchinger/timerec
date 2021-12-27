@@ -61,7 +61,7 @@ func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment s
 }
 
 func (c *ClientObject) FinishActivity(taskName string, _activityName string, comment string, endDuration time.Duration) {
-	_, ok, err := c.restclient.FindTaskByName(taskName)
+	_, ok, err := c.restclient.FindWorkItemByName(taskName)
 	if err != nil {
 		c.logger.Fatal(err)
 		return
@@ -84,7 +84,7 @@ func (c *ClientObject) FinishActivity(taskName string, _activityName string, com
 	if comment != "" {
 		profile.ActivityComment = profile.ActivityComment + "\n" + comment
 	}
-	_, err = c.restclient.AddActivityToTask(taskName, profile.ActivityComment, profile.ActivityStart, toTimestamp(endDuration))
+	_, err = c.restclient.AddActivityToWorkItem(taskName, profile.ActivityComment, profile.ActivityStart, toTimestamp(endDuration))
 	if err != nil {
 		c.logger.Fatalf("Error adding current activity to task '%s': %s", taskName, err.Error())
 	}
@@ -105,8 +105,8 @@ func (c *ClientObject) ActivityInfo() {
 	PrintActivity(profile)
 }
 
-func (c *ClientObject) EnsureTaskExists(name string) {
-	_, ok, err := c.restclient.FindTaskByName(name)
+func (c *ClientObject) EnsureWorkItemkExists(name string) {
+	_, ok, err := c.restclient.FindWorkItemByName(name)
 	if err != nil {
 		c.Panic(10, "fatal error creating querying tasks", err)
 	}
@@ -115,11 +115,11 @@ func (c *ClientObject) EnsureTaskExists(name string) {
 	}
 
 	c.logger.Printf("Creating Task %s\n...", name)
-	c.restclient.NewTask(name)
+	c.restclient.NewWorkItem(name)
 }
 
-func (c *ClientObject) UpdateTask(name, template, title, description, project, task string) {
-	existing, ok, err := c.restclient.FindTaskByName(name)
+func (c *ClientObject) UpdateWorkItem(name, template, title, description, project, task string) {
+	existing, ok, err := c.restclient.FindWorkItemByName(name)
 	if err != nil {
 		c.Panic(17, "unable to fetch task", err)
 	}
@@ -134,14 +134,14 @@ func (c *ClientObject) UpdateTask(name, template, title, description, project, t
 		c.Panic(19, "unable to fetch templates", err)
 	}
 
-	_, err = c.restclient.UpdateTask(CombineTask(existing, templates, template, title, description, project, task))
+	_, err = c.restclient.UpdateWorkItem(CombineWorkItems(existing, templates, template, title, description, project, task))
 	if err != nil {
 		c.Panic(20, "error updating task", err)
 	}
 }
 
-func (c *ClientObject) CompleteTask(name string) {
-	task, ok, err := c.restclient.FindTaskByName(name)
+func (c *ClientObject) CompleteWorkItem(name string) {
+	task, ok, err := c.restclient.FindWorkItemByName(name)
 	if err != nil {
 		c.logger.Fatal(err)
 		return
@@ -165,7 +165,7 @@ func (c *ClientObject) CompleteTask(name string) {
 		}
 	}
 
-	c.restclient.Deleteask(task)
+	c.restclient.DeleteWorkItem(task)
 	c.logger.Println("Completed Task " + name)
 }
 

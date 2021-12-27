@@ -64,8 +64,8 @@ func PrintActivity(profile api.Profile) {
 
 }
 
-func CombineTask(existing api.Task, template_list []api.RecordTemplate, template string, title string, description string, project string, task string) api.Task {
-	newTask := api.Task{Name: existing.Name}
+func CombineWorkItems(existing api.WorkItem, template_list []api.RecordTemplate, template string, title string, description string, project string, task string) api.WorkItem {
+	newTask := api.WorkItem{Name: existing.Name}
 	// Set Values according to Template
 	if template != "" {
 		for _, v := range template_list {
