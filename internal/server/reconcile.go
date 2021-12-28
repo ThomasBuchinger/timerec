@@ -44,17 +44,17 @@ func (mgr *TimerecServer) runReconcile(reconcileFunc func() ReconcileResult) {
 }
 
 func (mgr TimerecServer) reconcileTimer() ReconcileResult {
-	profile, err := mgr.stateProvider.GetProfile()
+	user, err := mgr.StateProvider.GetUser()
 	if err != nil {
 		return ReconcileResult{Error: err}
 	}
-	if profile.ActivityTimer.IsZero() {
+	if user.Activity.ActivityTimer.IsZero() {
 		return ReconcileResult{Ok: true}
 	}
-	timer := profile.ActivityTimer
+	timer := user.Activity.ActivityTimer
 	if timer.Before(time.Now()) {
-		event := MakeEvent("TIMER_EXPIRED", "Estimated time expired", "activity@"+profile.ActivityName, "me")
-		err2 := mgr.chat.NotifyUser(event)
+		event := MakeEvent("TIMER_EXPIRED", "Estimated time expired", "activity@"+user.Activity.ActivityName, "me")
+		err2 := mgr.ChatProvider.NotifyUser(event)
 		if err2 != nil {
 			return ReconcileResult{Error: err2}
 		}

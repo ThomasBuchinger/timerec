@@ -4,26 +4,26 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/thomasbuchinger/timerec/internal/client"
+	"github.com/thomasbuchinger/timerec/internal/server"
 	"gopkg.in/yaml.v2"
 )
 
 var debugCmd = &cobra.Command{
-	Use:   "debug profile|items|templates",
+	Use:   "debug user|items|templates",
 	Short: "Shows API objects",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		rest := client.RestClient{}
+		embeddedServer := server.NewServer()
 		var response interface{}
 		var err error
 
 		switch args[0] {
-		case "profile":
-			response, err = rest.GetActivity()
+		case "user":
+			response, err = embeddedServer.StateProvider.GetUser()
 		case "items":
-			response, err = rest.ListWorkItems()
+			response, err = embeddedServer.StateProvider.ListWorkItems()
 		case "templates":
-			response, err = rest.ListTemplates()
+			response, err = embeddedServer.TemplateProvider.GetTemplates()
 		}
 		if err != nil {
 			fmt.Println(err)

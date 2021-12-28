@@ -6,7 +6,7 @@ Compile the binary with `go build`. Once compiled create a "db.yaml" file. This 
 
 ```yaml
 # db.yaml
-profile: {}
+user: {}
 tasks: {}
 records: []
 ```

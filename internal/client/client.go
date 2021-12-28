@@ -1,183 +1,138 @@
 package client
 
 import (
-	"fmt"
 	"log"
 	"time"
 
-	"github.com/spf13/viper"
-	"github.com/thomasbuchinger/timerec/api"
+	"github.com/thomasbuchinger/timerec/internal/server"
 )
 
 type ClientObject struct {
-	logger     *log.Logger
-	restclient RestClient
+	logger *log.Logger
+	// restclient     RestClient
+	embeddedServer server.TimerecServer
 }
 
 func NewClient() ClientObject {
 	client := ClientObject{}
 	client.logger = log.Default()
-	client.restclient = RestClient{}
+	// client.restclient = RestClient{}
+
+	client.embeddedServer = server.NewServer()
 	return client
 }
 
 func (c *ClientObject) StartActivity(activityName string, comment string, start_duration time.Duration, estimate_duration time.Duration) {
-	profile, err := c.restclient.GetActivity()
-	if err != nil {
-		c.Panic(11, "unable to fetch profile", err)
-	}
-	err2 := CheckNoActivityActive(profile)
-	if err2 != nil {
-		c.Panic(12, "finish any active tasks, before starting a new one", fmt.Errorf("active task: %s", err2.Error()))
-	}
-
-	c.logger.Printf("Setting active task to '%s'...\n", activityName)
-	profile, err = c.restclient.SetActivity(activityName, comment, time.Now().Add(start_duration), time.Now().Add(estimate_duration))
-	if err != nil {
-		c.Panic(13, "unable to set active task", err)
+	resp := c.embeddedServer.StartActivity("me", server.StartActivityParams{
+		ActivityName:     activityName,
+		Comment:          comment,
+		StartDuration:    start_duration,
+		EstimateDuration: estimate_duration,
+	})
+	if !resp.Success {
+		c.Panic(10, "Unable to start Activity", resp.Err)
 	}
 
-	PrintActivity(profile)
+	PrintActivity(resp.Activity)
 }
 
 func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment string, reset bool) {
-	profile, err := c.restclient.GetActivity()
-	if err != nil {
-		c.Panic(11, "unable to fetch profile", err)
+	resp := c.embeddedServer.ExtendActivity("me", server.ExtendActivityParams{
+		Estimate:     estimate_duration,
+		Comment:      comment,
+		ResetComment: reset,
+	})
+	if !resp.Success {
+		c.Panic(11, "unable to extend Activity", resp.Err)
 	}
-	err2 := CheckActivityActive(profile)
-	if err2 != nil {
-		c.Panic(14, "No active task", fmt.Errorf("no active Task"))
-	}
-	if comment != "" {
-		profile.ActivityComment = profile.ActivityComment + "\n" + comment
-	}
-	profile, err = c.restclient.SetActivity(profile.ActivityName, profile.ActivityComment, profile.ActivityStart, time.Now().Add(estimate_duration))
-	if err != nil {
-		c.Panic(15, "unable to update active task", err)
-	}
-
-	PrintActivity(profile)
+	PrintActivity(resp.Activity)
 }
 
 func (c *ClientObject) FinishActivity(taskName string, _activityName string, comment string, endDuration time.Duration) {
-	_, ok, err := c.restclient.FindWorkItemByName(taskName)
-	if err != nil {
-		c.logger.Fatal(err)
-		return
-	} else if !ok {
-		c.logger.Fatalf("Unable to find Task '%s' name", taskName)
-		return
-	}
+	resp := c.embeddedServer.FinishActivity("me", server.FinishActivityParams{
+		WorkItemName: taskName,
+		ActivityName: "",
+		Comment:      comment,
+		EndDuration:  endDuration,
+	})
 
-	profile, err := c.restclient.GetActivity()
-	if err != nil {
-		c.logger.Fatal(err)
-		return
-	}
-	err2 := CheckActivityActive(profile)
-	if err2 != nil {
-		c.logger.Printf("Called FinishActivity, but no active activity found. Nothing to do\n")
-		return
-	}
-
-	if comment != "" {
-		profile.ActivityComment = profile.ActivityComment + "\n" + comment
-	}
-	_, err = c.restclient.AddActivityToWorkItem(taskName, profile.ActivityComment, profile.ActivityStart, toTimestamp(endDuration))
-	if err != nil {
-		c.logger.Fatalf("Error adding current activity to task '%s': %s", taskName, err.Error())
-	}
-	err = c.restclient.ClearActivity()
-	if err != nil {
-		fmt.Printf("Cannot reset Activity: %s", err.Error())
-		return
+	if !resp.Success {
+		c.Panic(12, "unable to finish activity", resp.Err)
 	}
 }
 
 func (c *ClientObject) ActivityInfo() {
-	profile, err := c.restclient.GetActivity()
-	if err != nil {
-		c.logger.Fatal(err)
-		return
+	resp := c.embeddedServer.GetActivity("me")
+	if !resp.Success {
+		c.Panic(13, "unable to get activity", resp.Err)
 	}
 
-	PrintActivity(profile)
+	PrintActivity(resp.Activity)
 }
 
 func (c *ClientObject) EnsureWorkItemkExists(name string) {
-	_, ok, err := c.restclient.FindWorkItemByName(name)
-	if err != nil {
-		c.Panic(10, "fatal error creating querying tasks", err)
-	}
-	if ok {
-		return
+	resp := c.embeddedServer.CreateWorkItemIfMissing(server.GetWorkItemParams{
+		Name:          name,
+		StartedAfter:  -24 * time.Hour,
+		StartedBefore: time.Duration(0),
+	})
+	if !resp.Success {
+		c.Panic(14, "unable to create WorkItem", resp.Err)
 	}
 
-	c.logger.Printf("Creating Task %s\n...", name)
-	c.restclient.NewWorkItem(name)
+	if resp.Created {
+		c.logger.Printf("Creating WorkItem '%s'...\n", name)
+	}
 }
 
 func (c *ClientObject) UpdateWorkItem(name, template, title, description, project, task string) {
-	existing, ok, err := c.restclient.FindWorkItemByName(name)
-	if err != nil {
-		c.Panic(17, "unable to fetch task", err)
-	}
-	if !ok {
-		c.Panic(18, "task does not exist", nil)
-	}
+	c.embeddedServer.CreateWorkItemIfMissing(server.GetWorkItemParams{
+		Name:          name,
+		StartedAfter:  -24 * time.Hour,
+		StartedBefore: time.Duration(0),
+	})
 
-	var templates []api.RecordTemplate
-	err = viper.UnmarshalKey("templates", &templates)
-	// templates, err := c.restclient.ListTemplates()
-	if err != nil {
-		c.Panic(19, "unable to fetch templates", err)
-	}
+	resp := c.embeddedServer.UpdateWorkItem(server.UpdateWorkItemParams{
+		Name:        name,
+		Template:    template,
+		Title:       title,
+		Description: description,
+		Project:     project,
+		Task:        task,
+	})
 
-	_, err = c.restclient.UpdateWorkItem(CombineWorkItems(existing, templates, template, title, description, project, task))
-	if err != nil {
-		c.Panic(20, "error updating task", err)
+	if !resp.Success {
+		c.Panic(15, "Unable to update WorkItem", resp.Err)
 	}
 }
 
 func (c *ClientObject) CompleteWorkItem(name string) {
-	task, ok, err := c.restclient.FindWorkItemByName(name)
-	if err != nil {
-		c.logger.Fatal(err)
-		return
-	} else if !ok {
-		c.logger.Fatalf("Unable to find Task '%s' name", name)
-		return
-	}
+	resp := c.embeddedServer.CompleteWorkItem(server.CompleteWorkItemParams{
+		Status: server.WorkItemStatusFinish,
+		GetWorkItemParams: server.GetWorkItemParams{
+			Name:          name,
+			StartedAfter:  -24 * time.Hour,
+			StartedBefore: time.Duration(0),
+		},
+	})
 
-	err = task.Validate()
-	if err != nil {
-		c.logger.Fatalf("task '%s' is invalid: %s", name, err.Error())
-		return
+	if !resp.Success {
+		c.Panic(16, "unable to complete WorkItem", resp.Err)
 	}
-
-	records := task.ConvertToRecords()
-	for _, record := range records {
-		_, err = c.restclient.SaveRecord(record)
-		if err != nil {
-			c.logger.Fatalf("Error saving record to API", err)
-			return
-		}
-	}
-
-	c.restclient.DeleteWorkItem(task)
-	c.logger.Println("Completed Task " + name)
 }
 
 func (c *ClientObject) Wait() {
-	profile, err := c.restclient.GetActivity()
-	if err != nil {
-		c.logger.Fatal(err)
-		return
+	resp := c.embeddedServer.GetActivity("me")
+	if !resp.Success {
+		c.Panic(17, "unable to get Activity", resp.Err)
 	}
 
-	if err := CheckActivityActive(profile); err != nil {
+	if err := resp.Activity.CheckNoActivityActive(); err == nil {
 		return
 	}
-	time.Sleep(time.Until(profile.ActivityTimer))
+	time.Sleep(time.Until(resp.Activity.ActivityTimer))
+}
+
+func (c *ClientObject) ReconcileServer() {
+	c.embeddedServer.Reconcile()
 }

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/thomasbuchinger/timerec/internal/server"
 )
 
 // waitCmd represents the wait command
@@ -16,14 +15,14 @@ The Reconciliation loop is rune once at the beginning of this command and once a
 	Run: func(cmd *cobra.Command, args []string) {
 		reconcile, _ := cmd.Flags().GetBool("reconcile")
 		if reconcile {
-			server.Reconcile()
+			cli.ReconcileServer()
 		}
 
 		cli.ActivityInfo()
 		cli.Wait()
 
 		if reconcile {
-			server.Reconcile()
+			cli.ReconcileServer()
 		}
 	},
 }

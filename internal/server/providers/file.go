@@ -12,28 +12,48 @@ type FileProvider struct {
 	Data FileData
 }
 type FileData struct {
-	Profile   api.Profile
+	User      api.User
 	Templates []api.RecordTemplate
 	Tasks     map[string]api.WorkItem
 	Records   []api.Record
 }
 
-func (store *FileProvider) GetProfile() (api.Profile, error) {
+func (store *FileProvider) GetUser() (api.User, error) {
 	data := store.load()
-	return data.Profile, nil
+	return data.User, nil
 }
 
-func (store *FileProvider) UpdateProfile(new api.Profile) (api.Profile, error) {
+func (store *FileProvider) UpdateUser(new api.User) (api.User, error) {
 	data := store.load()
-	data.Profile = new
+	data.User = new
 	store.store(data)
 
-	return data.Profile, nil
+	return data.User, nil
 }
+
 func (store *FileProvider) GetTemplates() ([]api.RecordTemplate, error) {
 	data := store.load()
-
 	return data.Templates, nil
+}
+
+func (store *FileProvider) HasTemplate(name string) (bool, error) {
+	data := store.load()
+	for _, tmpl := range data.Templates {
+		if tmpl.TemplateName == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (store *FileProvider) GetTemplate(name string) (api.RecordTemplate, error) {
+	data := store.load()
+	for _, tmpl := range data.Templates {
+		if tmpl.TemplateName == name {
+			return tmpl, nil
+		}
+	}
+	return api.RecordTemplate{}, fmt.Errorf("not found")
 }
 
 func (store *FileProvider) CreateWorkItem(t api.WorkItem) (api.WorkItem, error) {

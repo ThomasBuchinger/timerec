@@ -2,28 +2,33 @@ package server
 
 import (
 	"log"
+	"time"
 
 	"github.com/spf13/viper"
 	"github.com/thomasbuchinger/timerec/api"
 	"github.com/thomasbuchinger/timerec/internal/server/providers"
+	"go.uber.org/zap"
 )
 
 type TimerecServer struct {
-	logger        log.Logger
-	stateProvider State
-	backend       TimeService
-	chat          NotificationService
+	logger           log.Logger
+	loggerv2         zap.SugaredLogger
+	StateProvider    State
+	TemplateProvider TemplateService
+	TimeProvider     TimeService
+	ChatProvider     NotificationService
 }
 
 type TimerecServerConfig struct {
+	Settings struct {
+		RoundTo time.Duration
+	}
 	rocket providers.RocketChatConfig
 }
 
 type State interface {
-	GetProfile() (api.Profile, error)
-	UpdateProfile(api.Profile) (api.Profile, error)
-
-	GetTemplates() ([]api.RecordTemplate, error)
+	GetUser() (api.User, error)
+	UpdateUser(api.User) (api.User, error)
 
 	CreateWorkItem(api.WorkItem) (api.WorkItem, error)
 	ListWorkItems() ([]api.WorkItem, error)
@@ -32,6 +37,11 @@ type State interface {
 	DeleteWorkItem(api.WorkItem) (api.WorkItem, error)
 }
 
+type TemplateService interface {
+	GetTemplates() ([]api.RecordTemplate, error)
+	HasTemplate(string) (bool, error)
+	GetTemplate(string) (api.RecordTemplate, error)
+}
 type TimeService interface {
 	SaveRecord(api.Record) (api.Record, error)
 }
@@ -43,11 +53,12 @@ type NotificationService interface {
 
 func NewServer() TimerecServer {
 	logger := log.Default()
+	loggerv2, err := zap.NewProduction()
 	fileBackend := &providers.FileProvider{}
-	var chatService NotificationService
 
+	var chatService NotificationService
 	var rocketConfig providers.RocketChatConfig
-	err := viper.UnmarshalKey("rocketchat", &rocketConfig)
+	err = viper.UnmarshalKey("rocketchat", &rocketConfig)
 	if err == nil {
 		rocket := providers.NewRocketChatMessenger(rocketConfig)
 		chatService = &rocket
@@ -58,10 +69,12 @@ func NewServer() TimerecServer {
 	}
 
 	return TimerecServer{
-		logger:        *logger,
-		stateProvider: fileBackend,
-		backend:       fileBackend,
-		chat:          chatService,
+		logger:           *logger,
+		loggerv2:         *loggerv2.Sugar(),
+		StateProvider:    fileBackend,
+		TimeProvider:     fileBackend,
+		TemplateProvider: fileBackend,
+		ChatProvider:     chatService,
 	}
 }
 

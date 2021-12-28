@@ -27,6 +27,13 @@ type TimeEntry struct {
 	End     time.Time `yaml:"end,omitempty"`
 }
 
+func NewWorkItem(name string) WorkItem {
+	return WorkItem{
+		Name:      name,
+		CreatedAt: time.Now(),
+	}
+}
+
 func (t *WorkItem) Validate() error {
 	var missingCommentsInActivities bool = false
 	for _, act := range t.Activities {
