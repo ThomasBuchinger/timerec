@@ -5,36 +5,36 @@ import (
 	"time"
 )
 
-type WorkItem struct {
-	Name           string    `yaml:"task_name"`
-	CreatedAt      time.Time `yaml:"created,omitempty"`
-	RecordTemplate `yaml:",inline"`
+type Job struct {
+	Name           string    `yaml:"task_name" json:"task_name"`
+	CreatedAt      time.Time `yaml:"created,omitempty" json:"creates,omitempty"`
+	RecordTemplate `yaml:",inline" json:",inline"`
 
-	Activities []TimeEntry `yaml:"activities"`
+	Activities []TimeEntry `yaml:"activities" json:"activities"`
 }
 
 type RecordTemplate struct {
-	TemplateName string `yaml:"template_name"`
-	Project      string `yaml:"project,omitempty"`
-	Task         string `yaml:"task,omitempty"`
-	Title        string `yaml:"title,omitempty"`
-	Description  string `yaml:"description,omitempty"`
+	TemplateName string `yaml:"template_name" json:"template_name"`
+	Project      string `yaml:"project,omitempty" json:"project,omitempty"`
+	Task         string `yaml:"task,omitempty" json:"task,omitempty"`
+	Title        string `yaml:"title,omitempty" json:"title,omitempty"`
+	Description  string `yaml:"description,omitempty" json:"description,omitempty"`
 }
 
 type TimeEntry struct {
-	Comment string    `yaml:"comment,omitempty"`
-	Start   time.Time `yaml:"start,omitempty"`
-	End     time.Time `yaml:"end,omitempty"`
+	Comment string    `yaml:"comment,omitempty" json:"comment,omitempty"`
+	Start   time.Time `yaml:"start,omitempty" json:"start,omitempty"`
+	End     time.Time `yaml:"end,omitempty" json:"end,omitempty"`
 }
 
-func NewWorkItem(name string) WorkItem {
-	return WorkItem{
+func NewJob(name string) Job {
+	return Job{
 		Name:      name,
 		CreatedAt: time.Now(),
 	}
 }
 
-func (t *WorkItem) Validate() error {
+func (t *Job) Validate() error {
 	var missingCommentsInActivities bool = false
 	for _, act := range t.Activities {
 		if act.Comment == "" {
@@ -57,7 +57,7 @@ func (t *WorkItem) Validate() error {
 	return nil
 }
 
-func (t *WorkItem) ConvertToRecords() []Record {
+func (t *Job) ConvertToRecords() []Record {
 	var records []Record
 
 	for _, activity := range t.Activities {
@@ -80,7 +80,7 @@ func (t *WorkItem) ConvertToRecords() []Record {
 	return records
 }
 
-func (t *WorkItem) Update(new WorkItem) error {
+func (t *Job) Update(new Job) error {
 	if new.RecordTemplate.Title != "" {
 		t.RecordTemplate.Title = new.RecordTemplate.Title
 	}
@@ -103,7 +103,7 @@ func (t *WorkItem) Update(new WorkItem) error {
 	}
 	return nil
 }
-func (t *WorkItem) AddActivity(new_activity TimeEntry) error {
+func (t *Job) AddActivity(new_activity TimeEntry) error {
 	for _, existing_activity := range t.Activities {
 		if new_activity.Start == existing_activity.Start && new_activity.End == existing_activity.End {
 			if new_activity.Comment != "" {

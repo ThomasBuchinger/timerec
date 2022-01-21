@@ -1,7 +1,7 @@
 package server
 
 import (
-	"log"
+	"fmt"
 	"time"
 
 	"github.com/spf13/viper"
@@ -11,8 +11,7 @@ import (
 )
 
 type TimerecServer struct {
-	logger           log.Logger
-	loggerv2         zap.SugaredLogger
+	Logger           zap.SugaredLogger
 	StateProvider    State
 	TemplateProvider TemplateService
 	TimeProvider     TimeService
@@ -23,18 +22,17 @@ type TimerecServerConfig struct {
 	Settings struct {
 		RoundTo time.Duration
 	}
-	rocket providers.RocketChatConfig
 }
 
 type State interface {
 	GetUser() (api.User, error)
 	UpdateUser(api.User) (api.User, error)
 
-	CreateWorkItem(api.WorkItem) (api.WorkItem, error)
-	ListWorkItems() ([]api.WorkItem, error)
-	GetWorkItem(api.WorkItem) (api.WorkItem, error)
-	UpdateWorkItem(api.WorkItem) (api.WorkItem, error)
-	DeleteWorkItem(api.WorkItem) (api.WorkItem, error)
+	CreateJob(api.Job) (api.Job, error)
+	ListJobs() ([]api.Job, error)
+	GetJob(api.Job) (api.Job, error)
+	UpdateJob(api.Job) (api.Job, error)
+	DeleteJob(api.Job) (api.Job, error)
 }
 
 type TemplateService interface {
@@ -51,26 +49,42 @@ type NotificationService interface {
 	NotifyUser(api.Event) error
 }
 
+type ResponseError struct {
+	Type    ResponseErrorType
+	Message string
+	Cause   error
+}
+type ResponseErrorType string
+
+func (r ResponseError) Error() string {
+	return fmt.Sprintf("%s: %v", r.Type, r.Cause)
+}
+
+const (
+	BadRequest      ResponseErrorType = "BAD_REQUEST"
+	ValidationError ResponseErrorType = "VALIDATION_FAILED"
+	ProviderError   ResponseErrorType = "BACKEND_ERROR"
+	ServerError     ResponseErrorType = "SERVER_ERROR"
+)
+
 func NewServer() TimerecServer {
-	logger := log.Default()
-	loggerv2, err := zap.NewProduction()
+	logger, _ := zap.NewProduction()
 	fileBackend := &providers.FileProvider{}
 
 	var chatService NotificationService
 	var rocketConfig providers.RocketChatConfig
-	err = viper.UnmarshalKey("rocketchat", &rocketConfig)
+	err := viper.UnmarshalKey("rocketchat", &rocketConfig)
 	if err == nil {
 		rocket := providers.NewRocketChatMessenger(rocketConfig)
 		chatService = &rocket
-		// logger.Println("Using RocketChat NotificationService")
+		logger.Sugar().Debug("Using RocketChat NotificationService")
 	} else {
-		chatService = &providers.NoopProvider{}
-		// logger.Println("Using Noop NotificationService")
+		chatService = &providers.MemoryProvider{}
+		logger.Sugar().Debug("Using Noop NotificationService")
 	}
 
 	return TimerecServer{
-		logger:           *logger,
-		loggerv2:         *loggerv2.Sugar(),
+		Logger:           *logger.Sugar(),
 		StateProvider:    fileBackend,
 		TimeProvider:     fileBackend,
 		TemplateProvider: fileBackend,

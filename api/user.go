@@ -14,10 +14,10 @@ type Settings struct {
 }
 
 type Activity struct {
-	ActivityName    string    `yaml:"activity_name"`
-	ActivityComment string    `yaml:"activity_comment,omitempty"`
-	ActivityStart   time.Time `yaml:"activity_start,omitempty"`
-	ActivityTimer   time.Time `yaml:"activity_timer,omitempty"`
+	ActivityName    string    `yaml:"activity_name" json:"activity_name"`
+	ActivityComment string    `yaml:"activity_comment,omitempty" json:"activity_comment"`
+	ActivityStart   time.Time `yaml:"activity_start,omitempty" json:"activity_start"`
+	ActivityTimer   time.Time `yaml:"activity_timer,omitempty" json:"activity_timer"`
 }
 
 func (a *Activity) CheckActivityActive() error {
@@ -28,7 +28,7 @@ func (a *Activity) CheckActivityActive() error {
 }
 
 func (a *Activity) CheckNoActivityActive() error {
-	if err := a.CheckActivityActive(); err != nil {
+	if err := a.CheckActivityActive(); err == nil {
 		return fmt.Errorf("activity '%s' active", a.ActivityName)
 	}
 	return nil
@@ -36,6 +36,10 @@ func (a *Activity) CheckNoActivityActive() error {
 
 func (a *Activity) AddComment(comment string) {
 	if comment == "" {
+		return
+	}
+	if a.ActivityComment == "" {
+		a.ActivityComment = comment
 		return
 	}
 	a.ActivityComment = a.ActivityComment + "\n" + comment

@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -22,110 +24,135 @@ func NewClient() ClientObject {
 	return client
 }
 
-func (c *ClientObject) StartActivity(activityName string, comment string, start_duration time.Duration, estimate_duration time.Duration) {
-	resp := c.embeddedServer.StartActivity("me", server.StartActivityParams{
-		ActivityName:     activityName,
-		Comment:          comment,
-		StartDuration:    start_duration,
-		EstimateDuration: estimate_duration,
-	})
-	if !resp.Success {
-		c.Panic(10, "Unable to start Activity", resp.Err)
+func (c *ClientObject) exitIfError(err error, success bool, message string) {
+	if err == nil {
+		return
 	}
 
+	respErr := &server.ResponseError{}
+	if errors.As(err, respErr) {
+		c.Panic(10, respErr.Message, respErr.Cause)
+	}
+	if err != nil {
+		c.Panic(11, "GenericError: ", err)
+	}
+	if !success {
+		c.Panic(13, message, nil)
+	}
+
+}
+
+func (c *ClientObject) StartActivity(activityName string, comment string, start_duration time.Duration, estimate_duration time.Duration) {
+	resp, err := c.embeddedServer.StartActivity(
+		context.TODO(),
+		server.StartActivityParams{
+			UserName:         "me",
+			ActivityName:     activityName,
+			Comment:          comment,
+			StartDuration:    start_duration,
+			EstimateDuration: estimate_duration,
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to StartActivity")
 	PrintActivity(resp.Activity)
 }
 
 func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment string, reset bool) {
-	resp := c.embeddedServer.ExtendActivity("me", server.ExtendActivityParams{
-		Estimate:     estimate_duration,
-		Comment:      comment,
-		ResetComment: reset,
-	})
-	if !resp.Success {
-		c.Panic(11, "unable to extend Activity", resp.Err)
-	}
+	resp, err := c.embeddedServer.ExtendActivity(
+		context.TODO(),
+		server.ExtendActivityParams{
+			UserName:     "me",
+			Estimate:     estimate_duration,
+			Comment:      comment,
+			ResetComment: reset,
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to ExtendActivity")
 	PrintActivity(resp.Activity)
 }
 
 func (c *ClientObject) FinishActivity(taskName string, _activityName string, comment string, endDuration time.Duration) {
-	resp := c.embeddedServer.FinishActivity("me", server.FinishActivityParams{
-		WorkItemName: taskName,
-		ActivityName: "",
-		Comment:      comment,
-		EndDuration:  endDuration,
-	})
-
-	if !resp.Success {
-		c.Panic(12, "unable to finish activity", resp.Err)
-	}
+	resp, err := c.embeddedServer.FinishActivity(
+		context.TODO(),
+		server.FinishActivityParams{
+			UserName:     "me",
+			JobName:      taskName,
+			ActivityName: "",
+			Comment:      comment,
+			EndDuration:  endDuration,
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to FinishActivity")
 }
 
 func (c *ClientObject) ActivityInfo() {
-	resp := c.embeddedServer.GetActivity("me")
-	if !resp.Success {
-		c.Panic(13, "unable to get activity", resp.Err)
-	}
-
+	resp := server.ActivityResponse{}
+	resp, err := c.embeddedServer.GetActivity(
+		context.TODO(),
+		server.GetUserParams{
+			UserName: "me",
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to GetActivity")
 	PrintActivity(resp.Activity)
 }
 
-func (c *ClientObject) EnsureWorkItemkExists(name string) {
-	resp := c.embeddedServer.CreateWorkItemIfMissing(server.GetWorkItemParams{
-		Name:          name,
-		StartedAfter:  -24 * time.Hour,
-		StartedBefore: time.Duration(0),
-	})
-	if !resp.Success {
-		c.Panic(14, "unable to create WorkItem", resp.Err)
-	}
-
-	if resp.Created {
-		c.logger.Printf("Creating WorkItem '%s'...\n", name)
-	}
-}
-
-func (c *ClientObject) UpdateWorkItem(name, template, title, description, project, task string) {
-	c.embeddedServer.CreateWorkItemIfMissing(server.GetWorkItemParams{
-		Name:          name,
-		StartedAfter:  -24 * time.Hour,
-		StartedBefore: time.Duration(0),
-	})
-
-	resp := c.embeddedServer.UpdateWorkItem(server.UpdateWorkItemParams{
-		Name:        name,
-		Template:    template,
-		Title:       title,
-		Description: description,
-		Project:     project,
-		Task:        task,
-	})
-
-	if !resp.Success {
-		c.Panic(15, "Unable to update WorkItem", resp.Err)
-	}
-}
-
-func (c *ClientObject) CompleteWorkItem(name string) {
-	resp := c.embeddedServer.CompleteWorkItem(server.CompleteWorkItemParams{
-		Status: server.WorkItemStatusFinish,
-		GetWorkItemParams: server.GetWorkItemParams{
+func (c *ClientObject) EnsureJobkExists(name string) {
+	resp, err := c.embeddedServer.CreateJobIfMissing(
+		context.TODO(),
+		server.SearchJobParams{
 			Name:          name,
 			StartedAfter:  -24 * time.Hour,
 			StartedBefore: time.Duration(0),
 		},
-	})
+	)
+	c.exitIfError(err, resp.Success, "Unable to create Job")
 
-	if !resp.Success {
-		c.Panic(16, "unable to complete WorkItem", resp.Err)
+	if resp.Created {
+		c.logger.Printf("Creating Job '%s'...\n", name)
 	}
 }
 
+func (c *ClientObject) UpdateJob(name, template, title, description, project, task string) {
+	c.EnsureJobkExists(name)
+
+	resp, err := c.embeddedServer.UpdateJob(
+		context.TODO(),
+		server.UpdateJobParams{
+			Name:        name,
+			Template:    template,
+			Title:       title,
+			Description: description,
+			Project:     project,
+			Task:        task,
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to UpdateJob")
+}
+
+func (c *ClientObject) CompleteJob(name string) {
+	resp, err := c.embeddedServer.CompleteJob(
+		context.TODO(),
+		server.CompleteJobParams{
+			Status: server.JobStatusFinish,
+			SearchJobParams: server.SearchJobParams{
+				Name:          name,
+				StartedAfter:  -24 * time.Hour,
+				StartedBefore: time.Duration(0),
+			},
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to CompleteJob")
+}
+
 func (c *ClientObject) Wait() {
-	resp := c.embeddedServer.GetActivity("me")
-	if !resp.Success {
-		c.Panic(17, "unable to get Activity", resp.Err)
-	}
+	resp, err := c.embeddedServer.GetActivity(
+		context.TODO(),
+		server.GetUserParams{
+			UserName: "me",
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to GetActivity")
 
 	if err := resp.Activity.CheckNoActivityActive(); err == nil {
 		return

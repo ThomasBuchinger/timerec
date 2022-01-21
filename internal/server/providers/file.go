@@ -14,7 +14,7 @@ type FileProvider struct {
 type FileData struct {
 	User      api.User
 	Templates []api.RecordTemplate
-	Tasks     map[string]api.WorkItem
+	Tasks     map[string]api.Job
 	Records   []api.Record
 }
 
@@ -56,11 +56,11 @@ func (store *FileProvider) GetTemplate(name string) (api.RecordTemplate, error) 
 	return api.RecordTemplate{}, fmt.Errorf("not found")
 }
 
-func (store *FileProvider) CreateWorkItem(t api.WorkItem) (api.WorkItem, error) {
+func (store *FileProvider) CreateJob(t api.Job) (api.Job, error) {
 	data := store.load()
 	for name := range data.Tasks {
 		if name == t.Name {
-			return api.WorkItem{}, fmt.Errorf("CONFLICT")
+			return api.Job{}, fmt.Errorf("CONFLICT")
 		}
 	}
 	data.Tasks[t.Name] = t
@@ -68,9 +68,9 @@ func (store *FileProvider) CreateWorkItem(t api.WorkItem) (api.WorkItem, error) 
 	return t, nil
 }
 
-func (store *FileProvider) ListWorkItems() ([]api.WorkItem, error) {
+func (store *FileProvider) ListJobs() ([]api.Job, error) {
 	data := store.load()
-	taskList := []api.WorkItem{}
+	taskList := []api.Job{}
 	for _, task := range data.Tasks {
 		taskList = append(taskList, task)
 	}
@@ -78,24 +78,24 @@ func (store *FileProvider) ListWorkItems() ([]api.WorkItem, error) {
 	return taskList, nil
 }
 
-func (store *FileProvider) GetWorkItem(t api.WorkItem) (api.WorkItem, error) {
+func (store *FileProvider) GetJob(t api.Job) (api.Job, error) {
 	data := store.load()
 	for k, task := range data.Tasks {
 		if k == t.Name {
 			return task, nil
 		}
 	}
-	return api.WorkItem{}, fmt.Errorf("NOT_FOUND")
+	return api.Job{}, fmt.Errorf("NOT_FOUND")
 }
 
-func (store *FileProvider) UpdateWorkItem(t api.WorkItem) (api.WorkItem, error) {
+func (store *FileProvider) UpdateJob(t api.Job) (api.Job, error) {
 	data := store.load()
 	data.Tasks[t.Name] = t
 	store.store(data)
 	return t, nil
 }
 
-func (store *FileProvider) DeleteWorkItem(t api.WorkItem) (api.WorkItem, error) {
+func (store *FileProvider) DeleteJob(t api.Job) (api.Job, error) {
 	data := store.load()
 	for _, existing_task := range data.Tasks {
 		if existing_task.Name == t.Name {
@@ -104,7 +104,7 @@ func (store *FileProvider) DeleteWorkItem(t api.WorkItem) (api.WorkItem, error) 
 			return existing_task, nil
 		}
 	}
-	return api.WorkItem{}, fmt.Errorf("NOT_FOUND")
+	return api.Job{}, fmt.Errorf("NOT_FOUND")
 }
 
 func (store *FileProvider) SaveRecord(rec api.Record) (api.Record, error) {

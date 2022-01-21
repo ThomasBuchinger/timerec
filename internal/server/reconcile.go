@@ -1,6 +1,8 @@
 package server
 
 import (
+	"context"
+	"path"
 	"reflect"
 	"runtime"
 	"time"
@@ -8,42 +10,75 @@ import (
 
 type ReconcileResult struct {
 	Ok, Requeue bool
-	RetryAfter  float64
+	RetryAfter  time.Duration
 	Error       error
 }
 
 func (mgr *TimerecServer) Reconcile() {
-	reconcilers := []func() ReconcileResult{
+	reconcilers := []func(context.Context) ReconcileResult{
 		mgr.reconcileTimer,
+		// mgr.reconcileTest,
 	}
+	ctx := context.Background()
+	returns := make(chan bool)
 	for _, f := range reconcilers {
 		// this should run as go-routine, but that swallows logging
-		mgr.runReconcile(f)
+		go mgr.runReconcile(ctx, returns, f)
+	}
+	for range reconcilers {
+		<-returns
 	}
 }
 
-func (mgr *TimerecServer) runReconcile(reconcileFunc func() ReconcileResult) {
-	// start with Requue=true, to start the loop
-	result := ReconcileResult{Ok: true, Requeue: true, RetryAfter: 0, Error: nil}
-	funcName := runtime.FuncForPC(reflect.ValueOf(reconcileFunc).Pointer()).Name()
-	for result.Requeue {
-		result = reconcileFunc()
+func (mgr *TimerecServer) runReconcile(ctx context.Context, c chan bool, reconcileFunc func(context.Context) ReconcileResult) {
+	logger := mgr.Logger.Named("Reconciler")
 
-		if !result.Ok && result.Error == nil {
-			mgr.logger.Printf("function returned NOT Ok, but returned no error %s \n", funcName)
-		}
-		if result.Error != nil {
-			mgr.logger.Printf("error in function '%s': %s\n", funcName, result.Error.Error())
-		}
-		if result.Requeue {
-			mgr.logger.Printf("requueing %s", funcName)
-			time.Sleep(5 * time.Second)
+	// predefine a result variable to be reused.
+	result := ReconcileResult{Ok: true, Requeue: false, RetryAfter: 0, Error: nil}
+	fullFuncName := runtime.FuncForPC(reflect.ValueOf(reconcileFunc).Pointer()).Name()
+	funcName := path.Base(fullFuncName)
+	for {
+
+		// run reconcile function
+		result = reconcileFunc(ctx)
+		select {
+		// Stop Execution if Context expired
+		case <-ctx.Done():
+			c <- false
+			return
+		default:
+			// Log Errurs
+			if !result.Ok && result.Error == nil {
+				logger.Infof("function returned NOT Ok, but returned no error %s", funcName)
+			}
+			if result.Error != nil {
+				logger.Infof("error in function '%s': %s", funcName, result.Error.Error())
+			}
+
+			// Requeue if required
+			if !result.Requeue {
+				// Done. return from function
+				logger.Infof("Reconciled %s", funcName)
+				c <- true
+				return
+			} else {
+				// log, wait and continue infinite loop
+				logger.Infof("requeueing %s", funcName)
+				SleepWithContext(ctx, result.RetryAfter)
+				continue
+			}
 		}
 	}
-	mgr.logger.Printf("Reconciled %s\n", funcName)
 }
 
-func (mgr TimerecServer) reconcileTimer() ReconcileResult {
+func SleepWithContext(ctx context.Context, delay time.Duration) {
+	select {
+	case <-ctx.Done():
+	case <-time.After(delay):
+	}
+}
+
+func (mgr *TimerecServer) reconcileTimer(_ctx context.Context) ReconcileResult {
 	user, err := mgr.StateProvider.GetUser()
 	if err != nil {
 		return ReconcileResult{Error: err}
@@ -62,3 +97,7 @@ func (mgr TimerecServer) reconcileTimer() ReconcileResult {
 
 	return ReconcileResult{Ok: true}
 }
+
+// func (mgr *TimerecServer) reconcileTest(_ context.Context) ReconcileResult {
+// 	return ReconcileResult{Requeue: true}
+// }
