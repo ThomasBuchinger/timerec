@@ -17,23 +17,68 @@ type StartActivityParams struct {
 	ActivityName   string `json:"activity"`
 	Comment        string `json:"comment,omitempty"`
 	StartString    string `json:"start"`
-	ExtimateString string `json:"estimate"`
+	EstimateString string `json:"estimate"`
 
 	StartDuration    time.Duration `json:"start_int"`
 	EstimateDuration time.Duration `json:"estimate_int"`
 }
-type ExtendActivityParams struct {
-	UserName     string        `path:"user"`
-	Estimate     time.Duration `json:"estimate"`
-	Comment      string        `json:"comment,omitempty"`
-	ResetComment bool          `json:"reset_comment,omitempty" default:"false"`
+
+func (param *StartActivityParams) MakeValid() error {
+	var err error
+	if param.StartDuration == time.Duration(0) && param.StartString != "" {
+		param.StartDuration, err = time.ParseDuration(param.StartString)
+		if err != nil {
+			return err
+		}
+	}
+	if param.EstimateDuration == time.Duration(0) && param.EstimateString != "" {
+		param.EstimateDuration, err = time.ParseDuration(param.EstimateString)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
+
+type ExtendActivityParams struct {
+	UserName       string `path:"user"`
+	EstimateString string `json:"estimate"`
+	Comment        string `json:"comment,omitempty"`
+	ResetComment   bool   `json:"reset_comment,omitempty" default:"false"`
+
+	EstimateDuration time.Duration `json:"estimate_int,omitempty"`
+}
+
+func (param *ExtendActivityParams) MakeValid() error {
+	var err error
+	if param.EstimateDuration == time.Duration(0) && param.EstimateString != "" {
+		param.EstimateDuration, err = time.ParseDuration(param.EstimateString)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type FinishActivityParams struct {
-	UserName     string        `path:"user"`
-	JobName      string        `json:"job"`
-	ActivityName string        `json:"activity"`
-	Comment      string        `json:"comment,omitempty"`
-	EndDuration  time.Duration `json:"end"`
+	UserName     string `path:"user"`
+	JobName      string `json:"job"`
+	ActivityName string `json:"activity"`
+	Comment      string `json:"comment,omitempty"`
+
+	EndString   string        `json:"end"`
+	EndDuration time.Duration `json:"end_int,omitempty"`
+}
+
+func (param *FinishActivityParams) MakeValid() error {
+	var err error
+	if param.EndDuration == time.Duration(0) && param.EndString != "" {
+		param.EndDuration, err = time.ParseDuration(param.EndString)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type ActivityResponse struct {
@@ -56,6 +101,15 @@ func (mgr *TimerecServer) GetActivity(ctx context.Context, params GetUserParams)
 }
 
 func (mgr *TimerecServer) StartActivity(ctx context.Context, params StartActivityParams) (ActivityResponse, error) {
+	err := params.MakeValid()
+	if err != nil {
+		return ActivityResponse{}, ResponseError{
+			Type:    ValidationError,
+			Message: err.Error(),
+			Cause:   err,
+		}
+	}
+
 	user, err := mgr.StateProvider.GetUser()
 	if err != nil {
 		resp := ResponseError{
@@ -99,6 +153,15 @@ func (mgr *TimerecServer) StartActivity(ctx context.Context, params StartActivit
 }
 
 func (mgr *TimerecServer) ExtendActivity(ctx context.Context, params ExtendActivityParams) (ActivityResponse, error) {
+	err := params.MakeValid()
+	if err != nil {
+		return ActivityResponse{}, ResponseError{
+			Type:    ValidationError,
+			Message: err.Error(),
+			Cause:   err,
+		}
+	}
+
 	user, err := mgr.StateProvider.GetUser()
 	if err != nil {
 		mgr.Logger.Error(err)
@@ -126,7 +189,7 @@ func (mgr *TimerecServer) ExtendActivity(ctx context.Context, params ExtendActiv
 		user.Activity.ActivityName,
 		user.Activity.ActivityComment,
 		user.Activity.ActivityStart,
-		time.Now().Add(params.Estimate).Round(user.Settings.RoundTo),
+		time.Now().Add(params.EstimateDuration).Round(user.Settings.RoundTo),
 	)
 	saved, err := mgr.StateProvider.UpdateUser(user)
 	if err != nil {
@@ -138,11 +201,20 @@ func (mgr *TimerecServer) ExtendActivity(ctx context.Context, params ExtendActiv
 		}
 	}
 
-	mgr.Logger.Infof("Extend Activity %s by: %s", user.Activity.ActivityName, params.Estimate)
+	mgr.Logger.Infof("Extend Activity %s by: %s", user.Activity.ActivityName, params.EstimateDuration)
 	return ActivityResponse{Success: true, Activity: saved.Activity}, nil
 }
 
 func (mgr *TimerecServer) FinishActivity(ctx context.Context, params FinishActivityParams) (JobResponse, error) {
+	err := params.MakeValid()
+	if err != nil {
+		return JobResponse{}, ResponseError{
+			Type:    ValidationError,
+			Message: err.Error(),
+			Cause:   err,
+		}
+	}
+
 	response, err := mgr.GetJob(
 		ctx,
 		SearchJobParams{Name: params.JobName, StartedAfter: -24 * time.Hour, StartedBefore: 0},

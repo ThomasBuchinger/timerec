@@ -1,0 +1,534 @@
+openapi: 3.0.0
+info:
+  title: Timerec Server
+  version: 0.1.0
+  description: |
+    A time tracking service that actually works
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Activity
+  - name: Job
+  - name: Misc
+paths:
+  /user/{name}/activity:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - me
+      - name: x-request-id
+        in: header
+        description: will be forwarded to any backend calls resulting from this request and will be returned in the response
+        schema:
+          type: string
+          default: request-000001
+        allowEmptyValue: true
+        required: false
+    get:
+      summary: Get current Activity
+      operationId: GetActivity
+      description: Returns the currently active Activity or an empty object if no activity is active
+      tags:
+        - Activity
+      responses:
+        200:
+          $ref: "#/components/responses/ActivityResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+    post:
+      summary: Start a new Activity
+      operationId: StartActivity
+      description: Set the start time, when you started working on this Activity and when you would like to me reminded
+      tags:
+        - Activity
+      requestBody:
+        $ref: "#/components/requestBodies/StartActivityParams"
+      responses:
+        200:
+          $ref: "#/components/responses/ActivityResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+    patch:
+      summary: Extend an Activity
+      operationId: ExtendActivity
+      description: |
+        This updates the estimate with a new one (usually after the inititial estimate expired). Optionally add comments on your
+        progress for later
+      tags:
+        - Activity
+      requestBody:
+        $ref: "#/components/requestBodies/ExtendActivityParams"
+      responses:
+        200:
+          $ref: "#/components/responses/ActivityResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+    delete:
+      summary: Finish an Activity
+      operationId: FinishActivity
+      description: Record the actual end of the Activity and link it to a Job.
+      tags:
+        - Activity
+      requestBody:
+        $ref: "#/components/requestBodies/FinishActivityParams"
+      responses:
+        200:
+          $ref: "#/components/responses/JobResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+  /jobs:
+    get:
+      summary: Search Jobs
+      operationId: GetJob
+      description: Search for Jobs based on a few parameters
+      tags:
+        - Job
+      parameters:
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: start_after
+          in: query
+          schema:
+            $ref: "#/components/schemas/duration"
+        - name: start_before
+          in: query
+          schema:
+            description: Job must have been created before this time
+            default: 0m
+            $ref: "#/components/schemas/duration"
+        - name: x-request-id
+          in: header
+          description: will be forwarded to any backend calls resulting from this request and will be returned in the response
+          schema:
+            type: string
+            default: request-000001
+          allowEmptyValue: true
+          required: false
+      responses:
+        200:
+          $ref: "#/components/responses/JobResponse"
+        404:
+          $ref: "#/components/responses/JobResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+  /jobs/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+      - name: x-request-id
+        in: header
+        description: will be forwarded to any backend calls resulting from this request and will be returned in the response
+        schema:
+          type: string
+          default: request-000001
+        allowEmptyValue: true
+        required: false
+    post:
+      summary: Create an empty Job idempotently
+      operationId: CreateJobIfMissing
+      description: Creates job if a given Job does not exist, otherwise do nothing. This API cannot update existing Jobs
+      tags:
+        - Job
+      responses:
+        200:
+          $ref: "#/components/responses/JobResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+    put:
+      summary: Update a Job
+      operationId: UpdateJob
+      description: Update Job information
+      tags:
+        - Job
+      requestBody:
+        $ref: "#/components/requestBodies/UpdateJobParams"
+      responses:
+        200:
+          $ref: "#/components/responses/JobResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+    delete:
+      summary: Complete a Job
+      operationId: CompleteJob
+      description: Complete a Job.
+      tags:
+        - Job
+      requestBody:
+        $ref: "#/components/requestBodies/CompleteJobParams"
+      responses:
+        200:
+          $ref: "#/components/responses/JobResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+
+
+  #   put: {}
+  #   delete: {}
+
+  /healthz:
+    get:
+      summary: Health Endpoint
+      operationId: healthz
+      tags:
+        - Misc
+      responses:
+        200:
+          description: ok
+          content:
+            text/plain:
+              schema:
+                type: string
+  /readyz:
+    get:
+      summary: Readiness Probe
+      description: Currently always returns 200 OK
+      operationId: readyz
+      tags:
+        - Misc
+      responses:
+        200:
+          description: OK and ready for traffic
+          content:
+            text/plain:
+              schema:
+                type: string
+  /metrics:
+    get:
+      summary: Prometheus Metrics
+      operationId: metrics
+      tags:
+        - Misc
+      responses:
+        200:
+          description: Metrics
+          content:
+            text/plain: {}
+  /docs:
+    get:
+      summary: OpenAPI UI
+      tags:
+        - Misc
+      responses:
+        200:
+          description: OpenAPI UI
+          content:
+            text/html:
+              schema:
+                type: string
+components:
+  schemas:
+    Activity:
+      type: object
+      description: |
+        An Activity is a Job that someone is currently working on.
+
+        Usually only one Activity can be active at a time, things like Meetings could be modeled with parallell activities.
+
+        There is no end-timestamp, because once an Activity is finished, it is likend to a Job and the Job stores that Information
+      properties:
+        activity_name:
+          type: string
+          description: Name of the currently active Activity
+          nullable: false
+        activity_comment:
+          type: string
+          description: Stores comments on the current Activity
+        activity_start:
+          type: string
+          pattern: date-time
+          description: Timestamp when the activity was started
+        activity_timer:
+          type: string
+          pattern: date-time
+          description: Timestamp when the current estimate expires
+
+    Job:
+      type: object
+      description: |
+        A Job is a piece of work, that needs to be done. Usually mapped to a Ticket.
+
+        Unlike Activities that represent individual sessions and should not span multiple days, Jobs consist of multiple Activities. They
+        also act as a template for the individual Records stored in the TimeService-Backend.
+      properties:
+        job_name:
+          type: string
+          description: Name of this Job
+        created:
+          type: string
+          description: Creation Timestamp
+          format: date-time
+          readOnly: true
+        template_name:
+          type: string
+          description: Name of a Template to copy from
+        project:
+          type: string
+          description: Name of the Project this task belongs to
+        task:
+          type: string
+          description: Name of the assigned Task in the Project
+        title:
+          type: string
+          description: Title of the Job in the Backend System. Defaults to job_name
+        description:
+          type: string
+          description: Description of the Job. defaults to Activity Comments
+        activities:
+          type: array
+          description: All activities done for this Job.
+          items:
+            type: object
+            description: Simplified Activity Object
+            properties:
+              start:
+                type: string
+                format: date-time
+              end:
+                type: string
+                format: date-time
+              comment:
+                type: string
+
+    Error:
+      type: object
+      title: Timerec Error
+      properties:
+        type:
+          type: string
+          enum:
+            - BACKEND_ERROR
+            - BAD_REQUEST
+            - VALIDATION_ERROR
+            - SERVER_ERROR
+        message:
+          type: string
+        cause:
+          type: object
+
+    duration:
+      type: string
+      description: positive or negative duration in hours and minutes. e.g. 3h15m
+      pattern: '\-?(\d+h)?(\d+m)?'
+
+  requestBodies:
+    StartActivityParams:
+      description: Paramaters to start an Activity
+      content:
+        application/json:
+          schema:
+            title: StartActivityParams
+            type: object
+            required:
+              - name
+              - start
+              - estimate
+            properties:
+              activity:
+                type: string
+                description: Name of the Activity
+              comment:
+                type: string
+                nullable: true
+                description: Add a human readable description to this Activity
+              start:
+                $ref: "#/components/schemas/duration"
+              estimate:
+                $ref: "#/components/schemas/duration"
+          examples:
+            simple:
+              summary: Simpe
+              value:
+                activity: DOSTUFF
+                start: -30m
+                estimate: 1h30m
+
+    ExtendActivityParams:
+      description: Parameters to Extend an Activity
+      content:
+        application/json:
+          schema:
+            title: ExtendActivityParams
+            type: object
+            required:
+              - estimate
+            properties:
+              estimate:
+                $ref: "#/components/schemas/duration"
+              comment:
+                type: string
+                description: Comment on your progress
+                example: "debugging an unexpected problem with X"
+              reset_comment:
+                type: boolean
+                description: Remove previous comments and set a new one
+          examples:
+            simple:
+              summary: Minimal
+              value:
+                estimate: 1h
+            comment:
+              summary: With Comment
+              value:
+                estimate: 1h
+                comment: X isn't working as expected, debugging now
+
+    FinishActivityParams:
+      description: Prameters to Finish an Activity
+      content:
+        application/json:
+          schema:
+            title: FinishActivityParams
+            type: object
+            required:
+              - job
+              - end
+            properties:
+              job:
+                type: string
+                description: "Name of the Job this activity belongs to"
+              end:
+                $ref: "#/components/schemas/duration"
+              activity:
+                type: string
+                description: name of the Activity to Finish
+              comment:
+                type: string
+                description: A final comment
+          examples:
+            simple:
+              summary: Simple
+              value:
+                job: ticket-13
+                end: 0m
+            full:
+              summary: Full Example
+              value:
+                job: ticket-13
+                end: -10m
+                activity: DOSTUFF
+                comment: Problem was fixed by restarting the service
+
+    UpdateJobParams:
+      description: Parameters to Update a Job
+      content:
+        application/json:
+          schema:
+            title: UpdateJobParams
+            type: object
+            properties:
+              template:
+                type: string
+                description: Use default values from template
+              title:
+                type: string
+                description: Name/Title of this job to use in the Backend
+              description:
+                type: string
+                description: Additional Comment on this Job
+              project:
+                type: string
+                description: Name of the project this Job belongs to. Usually a Customer or Project in a Ticketing System
+              task:
+                type: string
+                description: The Task or Ticket this Job belongs to
+          examples:
+            template:
+              summary: Use Template
+              value:
+                template: myprojecta
+                title: my new title
+            all:
+              summary: Manual
+              value:
+                project: timerec-server
+                task: bug-15
+                title: Fix a Bug
+                description: either add a description here or use the comments from the activity
+    CompleteJobParams:
+      description: Parameters to Complate a Job
+      content:
+        application/json:
+          schema:
+            title: CompleteJobParams
+            type: object
+            properties:
+              status:
+                type: string
+                enum:
+                  - finished
+                  - canceled
+                default: finished
+          examples:
+            fin:
+              summary: Finish a Job
+              value:
+                status: finished
+
+  responses:
+    ActivityResponse:
+      description: Returns the current Activity
+      headers:
+        x-request-id:
+          $ref: "#/components/headers/x-request-id"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              activity:
+                $ref: "#/components/schemas/Activity"
+          examples:
+            simple:
+              summary: Simple Response
+              value:
+                success: true
+                activity:
+                  activity_name: DOSTUFF
+                  activity comment: |
+                    did step1
+                    did step2
+                  activity_start: "2022-01-22T12:30:00+01:00"
+                  activity_timer: "2022-01-22T14:30:00+01:00"
+
+    JobResponse:
+      description: Return the updated Job Object
+      headers:
+        x-request-id:
+          $ref: "#/components/headers/x-request-id"
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+              created:
+                type: boolean
+              job:
+                $ref: "#/components/schemas/Job"
+
+    ErrorResponse:
+      description: The server returned an Error Message
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  headers:
+    x-request-id:
+      description: Unitque String idenifying the request. Autogenerated if not set by the caller
+      schema:
+        type: string
+        example: localhost/asdf-000001
+        format: <servername>/<instance-id>-000000
+    

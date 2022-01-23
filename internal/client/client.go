@@ -61,10 +61,10 @@ func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment s
 	resp, err := c.embeddedServer.ExtendActivity(
 		context.TODO(),
 		server.ExtendActivityParams{
-			UserName:     "me",
-			Estimate:     estimate_duration,
-			Comment:      comment,
-			ResetComment: reset,
+			UserName:         "me",
+			EstimateDuration: estimate_duration,
+			Comment:          comment,
+			ResetComment:     reset,
 		},
 	)
 	c.exitIfError(err, resp.Success, "Unable to ExtendActivity")

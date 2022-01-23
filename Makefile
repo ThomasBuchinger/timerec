@@ -6,3 +6,6 @@ build:
 
 test:
 	go test ./... -cover
+
+dev: test build
+	go run ./cmd/timerec-server

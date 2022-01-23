@@ -11,7 +11,9 @@ import (
 )
 
 type TimerecServer struct {
-	Logger           zap.SugaredLogger
+	Logger   zap.SugaredLogger
+	Settings TimerecServerConfig
+
 	StateProvider    State
 	TemplateProvider TemplateService
 	TimeProvider     TimeService
@@ -20,7 +22,9 @@ type TimerecServer struct {
 
 type TimerecServerConfig struct {
 	Settings struct {
-		RoundTo time.Duration
+		RoundTo         time.Duration
+		MissedWorkAlarm time.Duration
+		Weekdays        []string
 	}
 }
 
@@ -69,11 +73,18 @@ const (
 
 func NewServer() TimerecServer {
 	logger, _ := zap.NewProduction()
+	var settings TimerecServerConfig
+	err := viper.Unmarshal(&settings)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("Config File invalid: %v", err))
+	}
+	SetDefaultConfig(&settings)
+
 	fileBackend := &providers.FileProvider{}
 
 	var chatService NotificationService
 	var rocketConfig providers.RocketChatConfig
-	err := viper.UnmarshalKey("rocketchat", &rocketConfig)
+	err = viper.UnmarshalKey("rocketchat", &rocketConfig)
 	if err == nil {
 		rocket := providers.NewRocketChatMessenger(rocketConfig)
 		chatService = &rocket
@@ -84,7 +95,9 @@ func NewServer() TimerecServer {
 	}
 
 	return TimerecServer{
-		Logger:           *logger.Sugar(),
+		Logger:   *logger.Sugar(),
+		Settings: settings,
+
 		StateProvider:    fileBackend,
 		TimeProvider:     fileBackend,
 		TemplateProvider: fileBackend,
@@ -99,4 +112,19 @@ func MakeEvent(name, message, target, user string) api.Event {
 		Target:  target,
 		User:    "me",
 	}
+}
+
+func SetDefaultConfig(s *TimerecServerConfig) {
+	if s.Settings.RoundTo == time.Duration(0) {
+		dur15m, _ := time.ParseDuration("15m")
+		s.Settings.RoundTo = dur15m
+	}
+	if len(s.Settings.Weekdays) == 0 {
+		s.Settings.Weekdays = []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"}
+	}
+	if s.Settings.MissedWorkAlarm == time.Duration(0) {
+		noon, _ := time.ParseDuration("12h")
+		s.Settings.MissedWorkAlarm = noon
+	}
+
 }

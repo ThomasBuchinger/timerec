@@ -37,8 +37,8 @@ const (
 
 type JobResponse struct {
 	Success bool    `json:"success"`
-	Created bool    `json:"created,omitempty"`
-	Job     api.Job `json:"job"`
+	Created bool    `json:"created"`
+	Job     api.Job `json:"job,omitempty"`
 }
 
 func (mgr *TimerecServer) GetJob(ctx context.Context, params SearchJobParams) (JobResponse, error) {

@@ -15,9 +15,9 @@ type Settings struct {
 
 type Activity struct {
 	ActivityName    string    `yaml:"activity_name" json:"activity_name"`
-	ActivityComment string    `yaml:"activity_comment,omitempty" json:"activity_comment"`
-	ActivityStart   time.Time `yaml:"activity_start,omitempty" json:"activity_start"`
-	ActivityTimer   time.Time `yaml:"activity_timer,omitempty" json:"activity_timer"`
+	ActivityComment string    `yaml:"activity_comment,omitempty" json:"activity_comment,omitempty"`
+	ActivityStart   time.Time `yaml:"activity_start,omitempty" json:"activity_start,omitempty"`
+	ActivityTimer   time.Time `yaml:"activity_timer,omitempty" json:"activity_timer,omitempty"`
 }
 
 func (a *Activity) CheckActivityActive() error {

@@ -6,8 +6,8 @@ import (
 )
 
 type Job struct {
-	Name           string    `yaml:"task_name" json:"task_name"`
-	CreatedAt      time.Time `yaml:"created,omitempty" json:"creates,omitempty"`
+	Name           string    `yaml:"task_name" json:"job_name"`
+	CreatedAt      time.Time `yaml:"created,omitempty" json:"created,omitempty"`
 	RecordTemplate `yaml:",inline" json:",inline"`
 
 	Activities []TimeEntry `yaml:"activities" json:"activities"`

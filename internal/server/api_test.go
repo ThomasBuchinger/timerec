@@ -34,10 +34,10 @@ func TestStartActivityIfAnotherActivityIsActive(t *testing.T) {
 	mgr := NewTestServer(&mem)
 
 	response, err := mgr.StartActivity(context.TODO(), server.StartActivityParams{
-		UserName:         "me",
-		ActivityName:     "new",
-		StartDuration:    time.Duration(0),
-		EstimateDuration: time.Duration(0),
+		UserName:       "me",
+		ActivityName:   "new",
+		StartString:    "0m",
+		EstimateString: "0m",
 	})
 
 	if mem.User.Activity.ActivityName != "exists" {
@@ -59,10 +59,10 @@ func TestStartActivityWorks(t *testing.T) {
 	mgr := NewTestServer(&mem)
 
 	response, _ := mgr.StartActivity(context.TODO(), server.StartActivityParams{
-		UserName:         "me",
-		ActivityName:     "new",
-		StartDuration:    time.Duration(0),
-		EstimateDuration: time.Duration(0),
+		UserName:       "me",
+		ActivityName:   "new",
+		StartString:    "0m",
+		EstimateString: "0m",
 	})
 	if mem.User.Activity.ActivityName != "new" {
 		t.Logf("ActivityName not updated. got %s", mem.User.Activity.ActivityName)
@@ -91,8 +91,8 @@ func TestExtendActivityWorks(t *testing.T) {
 	})
 	ts1 := mem.User.Activity.ActivityTimer
 	mgr.ExtendActivity(context.TODO(), server.ExtendActivityParams{
-		UserName: "me",
-		Estimate: dur + dur,
+		UserName:         "me",
+		EstimateDuration: dur + dur,
 	})
 	if ts1 == mem.User.Activity.ActivityTimer {
 		t.Fatal("timestamp not updated")

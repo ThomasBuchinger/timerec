@@ -17,6 +17,7 @@ type ReconcileResult struct {
 func (mgr *TimerecServer) Reconcile() {
 	reconcilers := []func(context.Context) ReconcileResult{
 		mgr.reconcileTimer,
+		mgr.reconcileBegin,
 		// mgr.reconcileTest,
 	}
 	ctx := context.Background()
@@ -84,17 +85,49 @@ func (mgr *TimerecServer) reconcileTimer(_ctx context.Context) ReconcileResult {
 		return ReconcileResult{Error: err}
 	}
 	if user.Activity.ActivityTimer.IsZero() {
-		return ReconcileResult{Ok: true}
+		return ReconcileResult{Ok: true} // No Timer Set, Nothing to do
 	}
 	timer := user.Activity.ActivityTimer
-	if timer.Before(time.Now()) {
-		event := MakeEvent("TIMER_EXPIRED", "Estimated time expired", "activity@"+user.Activity.ActivityName, "me")
-		err2 := mgr.ChatProvider.NotifyUser(event)
-		if err2 != nil {
-			return ReconcileResult{Error: err2}
-		}
+	if timer.After(time.Now()) {
+		return ReconcileResult{Ok: true, Requeue: true, RetryAfter: time.Until(timer)} // Timer is in the furture. Waiting...
 	}
 
+	// Timer expired
+	event := MakeEvent("TIMER_EXPIRED", "Estimated time expired", "activity@"+user.Activity.ActivityName, "me")
+	err2 := mgr.ChatProvider.NotifyUser(event)
+	if err2 != nil {
+		return ReconcileResult{Error: err2}
+	}
+	return ReconcileResult{Ok: true}
+}
+
+func (mgr *TimerecServer) reconcileBegin(_ctx context.Context) ReconcileResult {
+	now := time.Now()
+	weekdays := mgr.Settings.Settings.Weekdays
+
+	// Check for Weekdays
+	isWeekday := false
+	for _, day := range weekdays {
+		if now.Weekday().String() == day {
+			isWeekday = true
+			break
+		}
+	}
+	if !isWeekday {
+		return ReconcileResult{Ok: true}
+	}
+
+	day, _ := time.ParseDuration("1d")
+	alarm := time.Now().Local().Truncate(day).Add(mgr.Settings.Settings.MissedWorkAlarm)
+	if now.Before(alarm) {
+		return ReconcileResult{Ok: true, Requeue: true, RetryAfter: time.Until(alarm)}
+	}
+
+	event := MakeEvent("NO_ENTRY_ALARM", "No work logged today!", "activity@none", "me")
+	err := mgr.ChatProvider.NotifyUser(event)
+	if err != nil {
+		return ReconcileResult{Error: err}
+	}
 	return ReconcileResult{Ok: true}
 }
 
