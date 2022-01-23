@@ -1,6 +1,6 @@
 .vscode
 
 db.yaml
-timerec
-timerec-server
+/timerec
+/timerec-server
 timerec-config.yaml

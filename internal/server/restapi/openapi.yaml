@@ -170,10 +170,6 @@ paths:
         500:
           $ref: "#/components/responses/ErrorResponse"
 
-
-  #   put: {}
-  #   delete: {}
-
   /healthz:
     get:
       summary: Health Endpoint
