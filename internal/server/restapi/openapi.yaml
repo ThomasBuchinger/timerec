@@ -310,6 +310,24 @@ components:
         cause:
           type: object
 
+    ActivityResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        activity:
+          $ref: "#/components/schemas/Activity"
+
+    JobResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        created:
+          type: boolean
+        job:
+          $ref: "#/components/schemas/Job"
+
     duration:
       type: string
       description: positive or negative duration in hours and minutes. e.g. 3h15m
@@ -478,12 +496,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-              activity:
-                $ref: "#/components/schemas/Activity"
+            $ref: "#/components/schemas/ActivityResponse"
           examples:
             simple:
               summary: Simple Response
@@ -505,14 +518,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              success:
-                type: boolean
-              created:
-                type: boolean
-              job:
-                $ref: "#/components/schemas/Job"
+            $ref: "#/components/schemas/JobResponse"
 
     ErrorResponse:
       description: The server returned an Error Message
