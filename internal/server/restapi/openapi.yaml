@@ -7,19 +7,56 @@ info:
 servers:
   - url: http://localhost:8080
 tags:
+  - name: User
   - name: Activity
   - name: Job
   - name: Misc
 paths:
-  /user/{name}/activity:
+  /user/{user}:
     parameters:
-      - name: name
+      - name: user
         in: path
         required: true
         schema:
           type: string
-          enum:
-            - me
+      - name: x-request-id
+        in: header
+        description: will be forwarded to any backend calls resulting from this request and will be returned in the response
+        schema:
+          type: string
+          default: request-000001
+        allowEmptyValue: true
+        required: false
+    get:
+      summary: Get an User
+      operationId: GetUser
+      description: Get the User object for {user}
+      tags:
+        - User
+      responses:
+        200:
+          $ref: "#/components/responses/UserResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+    post:
+      summary: Create an User idempotently
+      operationId: CreateUserIfMissing
+      description: Create a user with default Settings. Does Nothing if the user already exists
+      tags:
+        - User
+      responses:
+        200:
+          $ref: "#/components/responses/UserResponse"
+        500:
+          $ref: "#/components/responses/ErrorResponse"
+
+  /user/{user}/activity:
+    parameters:
+      - name: user
+        in: path
+        required: true
+        schema:
+          type: string
       - name: x-request-id
         in: header
         description: will be forwarded to any backend calls resulting from this request and will be returned in the response
@@ -80,7 +117,7 @@ paths:
           $ref: "#/components/responses/JobResponse"
         500:
           $ref: "#/components/responses/ErrorResponse"
-  /jobs:
+  /user/{user}/jobs:
     get:
       summary: Search Jobs
       operationId: GetJob
@@ -88,6 +125,11 @@ paths:
       tags:
         - Job
       parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
         - name: name
           in: query
           schema:
@@ -117,8 +159,13 @@ paths:
           $ref: "#/components/responses/JobResponse"
         500:
           $ref: "#/components/responses/ErrorResponse"
-  /jobs/{name}:
+  /user/{user}/jobs/{name}:
     parameters:
+      - name: user
+        in: path
+        required: true
+        schema:
+          type: string
       - name: name
         in: path
         required: true
@@ -222,6 +269,40 @@ paths:
                 type: string
 components:
   schemas:
+    User:
+      type: object
+      description: Users are mostry Containers for Activities, Jobs and Settings
+      properties:
+        name:
+          type: string
+          description: A unique username. This name needs to be mapped back to the different providers (Chat, TimeService)
+        inactive:
+          type: boolean
+          description: Setting an User as inactive mostly prevents getting Notifications
+          default: false
+        activity:
+          $ref: "#/components/schemas/Activity"
+        settings:
+          type: object
+          properties:
+            hello_timer:
+              type: string
+              description: "NOT IMPLEMENTED: Grace period between a user being online and the reminder to start recording their work"
+            default_estimate:
+              type: string
+              description: "NOT IMPLMENTED: default estimate, if StartActivity or ExtendActivity don't have an estimate set"
+            round_to:
+              type: string
+              description: nearest time intervall to round all timestamps to.
+            alarm:
+              type: string
+              description: Get an alarm if no activity has been recorded, after this point each day
+            weekdays:
+              type: array
+              description: Working days each week
+              items:
+                type: string
+                enum: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", Sunday]
     Activity:
       type: object
       description: |
@@ -327,6 +408,16 @@ components:
           type: boolean
         job:
           $ref: "#/components/schemas/Job"
+
+    UserResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        created:
+          type: boolean
+        user:
+          $ref: "#/components/schemas/User"
 
     duration:
       type: string
@@ -519,6 +610,16 @@ components:
         application/json:
           schema:
             $ref: "#/components/schemas/JobResponse"
+
+    UserResponse:
+      description: Return the User Object
+      headers:
+        x-request-id:
+          $ref: "#/components/headers/x-request-id"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/UserResponse"
 
     ErrorResponse:
       description: The server returned an Error Message

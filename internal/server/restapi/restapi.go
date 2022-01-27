@@ -30,10 +30,36 @@ func Run(mgr *server.TimerecServer) {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	mountUtils(r)
+	mountUserApi(r, mgr)
 	mountActivityApi(r, mgr)
 	mountJobApi(r, mgr)
 
 	http.ListenAndServe(":8080", r)
+}
+
+func mountUserApi(r *chi.Mux, mgr *server.TimerecServer) {
+	api := chi.NewRouter()
+	api.Use(middleware.AllowContentType("application/json"))
+	api.Use(middleware.SetHeader("Content-Type", "application/json"))
+
+	api.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "user")
+
+		resp, err := mgr.GetUser(r.Context(), server.SearchUserParams{Name: name})
+		ObjectToJsonBytes(r.Context(), rw, resp, err)
+	})
+	api.Post("/", func(rw http.ResponseWriter, r *http.Request) {
+		params := server.SearchUserParams{
+			Name:     chi.URLParam(r, "user"),
+			Inactive: false,
+		}
+
+		resp, err := mgr.CreateUserIfMissing(r.Context(), params)
+		ObjectToJsonBytes(r.Context(), rw, resp, err)
+
+	})
+
+	r.Mount("/user/{user}", api)
 }
 
 func mountActivityApi(r *chi.Mux, mgr *server.TimerecServer) {
@@ -41,16 +67,16 @@ func mountActivityApi(r *chi.Mux, mgr *server.TimerecServer) {
 	api.Use(middleware.AllowContentType("application/json"))
 	api.Use(middleware.SetHeader("Content-Type", "application/json"))
 
-	api.Get("/{name}/activity", func(rw http.ResponseWriter, r *http.Request) {
-		name := chi.URLParam(r, "name")
+	api.Get("/", func(rw http.ResponseWriter, r *http.Request) {
+		name := chi.URLParam(r, "user")
 
 		resp, err := mgr.GetActivity(r.Context(), server.GetUserParams{UserName: name})
 		ObjectToJsonBytes(r.Context(), rw, resp, err)
 	})
-	api.Post("/{name}/activity", func(rw http.ResponseWriter, r *http.Request) {
+	api.Post("/", func(rw http.ResponseWriter, r *http.Request) {
 		params := server.StartActivityParams{}
 		err := json.NewDecoder(r.Body).Decode(&params)
-		params.UserName = chi.URLParam(r, "name")
+		params.UserName = chi.URLParam(r, "user")
 		if err != nil {
 			http.Error(rw, http.StatusText(400), 400)
 			return
@@ -59,10 +85,10 @@ func mountActivityApi(r *chi.Mux, mgr *server.TimerecServer) {
 		resp, err := mgr.StartActivity(r.Context(), params)
 		ObjectToJsonBytes(r.Context(), rw, resp, err)
 	})
-	api.Patch("/{name}/activity", func(rw http.ResponseWriter, r *http.Request) {
+	api.Patch("/", func(rw http.ResponseWriter, r *http.Request) {
 		params := server.ExtendActivityParams{}
 		err := json.NewDecoder(r.Body).Decode(&params)
-		params.UserName = chi.URLParam(r, "name")
+		params.UserName = chi.URLParam(r, "user")
 		if err != nil {
 			http.Error(rw, http.StatusText(400), 400)
 			return
@@ -71,10 +97,10 @@ func mountActivityApi(r *chi.Mux, mgr *server.TimerecServer) {
 		resp, err := mgr.ExtendActivity(r.Context(), params)
 		ObjectToJsonBytes(r.Context(), rw, resp, err)
 	})
-	api.Delete("/{name}/activity", func(rw http.ResponseWriter, r *http.Request) {
+	api.Delete("/", func(rw http.ResponseWriter, r *http.Request) {
 		params := server.FinishActivityParams{}
 		err := json.NewDecoder(r.Body).Decode(&params)
-		params.UserName = chi.URLParam(r, "name")
+		params.UserName = chi.URLParam(r, "user")
 		if err != nil {
 			http.Error(rw, http.StatusText(400), 400)
 			return
@@ -84,7 +110,7 @@ func mountActivityApi(r *chi.Mux, mgr *server.TimerecServer) {
 		ObjectToJsonBytes(r.Context(), rw, resp, err)
 	})
 
-	r.Mount("/user", api)
+	r.Mount("/user/{user}/activity", api)
 }
 
 func mountJobApi(r *chi.Mux, mgr *server.TimerecServer) {
@@ -97,6 +123,7 @@ func mountJobApi(r *chi.Mux, mgr *server.TimerecServer) {
 		default_before, _ := time.ParseDuration("0m")
 		params := server.SearchJobParams{
 			Name:          r.URL.Query().Get("name"),
+			Owner:         chi.URLParam(r, "user"),
 			StartedAfter:  default_after,
 			StartedBefore: default_before,
 		}
@@ -108,8 +135,9 @@ func mountJobApi(r *chi.Mux, mgr *server.TimerecServer) {
 		ObjectToJsonBytes(r.Context(), rw, resp, err)
 	})
 	api.Post("/{name}", func(rw http.ResponseWriter, r *http.Request) {
-		name := chi.URLParam(r, "name")
-		params := server.SearchJobParams{Name: name}
+		params := server.SearchJobParams{
+			Name:  chi.URLParam(r, "name"),
+			Owner: chi.URLParam(r, "user")}
 
 		resp, err := mgr.CreateJobIfMissing(r.Context(), params)
 		ObjectToJsonBytes(r.Context(), rw, resp, err)
@@ -118,6 +146,7 @@ func mountJobApi(r *chi.Mux, mgr *server.TimerecServer) {
 		params := server.UpdateJobParams{}
 		err := json.NewDecoder(r.Body).Decode(&params)
 		params.Name = chi.URLParam(r, "name")
+		params.Owner = chi.URLParam(r, "user")
 		if err != nil {
 			http.Error(rw, http.StatusText(400), 400)
 			return
@@ -130,6 +159,7 @@ func mountJobApi(r *chi.Mux, mgr *server.TimerecServer) {
 		params := server.CompleteJobParams{}
 		err := json.NewDecoder(r.Body).Decode(&params)
 		params.Name = chi.URLParam(r, "name")
+		params.Owner = chi.URLParam(r, "user")
 		if err != nil {
 			http.Error(rw, http.StatusText(400), 400)
 			return
@@ -139,7 +169,7 @@ func mountJobApi(r *chi.Mux, mgr *server.TimerecServer) {
 		ObjectToJsonBytes(r.Context(), rw, resp, err)
 	})
 
-	r.Mount("/jobs", api)
+	r.Mount("/user/{user}/jobs", api)
 }
 
 func ObjectToJsonBytes(ctx context.Context, rw http.ResponseWriter, obj interface{}, err error) {

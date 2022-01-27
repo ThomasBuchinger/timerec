@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewTestServer(mem *providers.MemoryProvider) server.TimerecServer {
+func NewTestServer(mem *providers.FileProvider) server.TimerecServer {
 	logger, _ := zap.NewDevelopment()
 
 	return server.TimerecServer{
@@ -25,13 +25,19 @@ func NewTestServer(mem *providers.MemoryProvider) server.TimerecServer {
 
 // Activity cannot be started, when another one is already active
 func TestStartActivityIfAnotherActivityIsActive(t *testing.T) {
-	mem := providers.MemoryProvider{User: api.User{Activity: api.Activity{
-		ActivityName:    "exists",
-		ActivityComment: "comment",
-		ActivityStart:   time.Now(),
-		ActivityTimer:   time.Now(),
-	}}}
-	mgr := NewTestServer(&mem)
+	mem := providers.NewMemoryProvider()
+	mem.Data.User["me"] = api.User{
+		Name:     "me",
+		Inactive: false,
+		Activity: api.Activity{
+			ActivityName:    "exists",
+			ActivityComment: "comment",
+			ActivityStart:   time.Now(),
+			ActivityTimer:   time.Now(),
+		},
+	}
+
+	mgr := NewTestServer(mem)
 
 	response, err := mgr.StartActivity(context.TODO(), server.StartActivityParams{
 		UserName:       "me",
@@ -40,8 +46,8 @@ func TestStartActivityIfAnotherActivityIsActive(t *testing.T) {
 		EstimateString: "0m",
 	})
 
-	if mem.User.Activity.ActivityName != "exists" {
-		t.Logf("ActivityName updated, despite error. got %s, expected exists", mem.User.Activity.ActivityName)
+	if mem.Data.User["me"].Activity.ActivityName != "exists" {
+		t.Logf("ActivityName updated, despite error. got %s, expected exists", mem.Data.User["me"].Activity.ActivityName)
 		t.Fail()
 	}
 	if response.Success != false {
@@ -55,17 +61,18 @@ func TestStartActivityIfAnotherActivityIsActive(t *testing.T) {
 }
 
 func TestStartActivityWorks(t *testing.T) {
-	mem := providers.MemoryProvider{}
-	mgr := NewTestServer(&mem)
+	mem := providers.NewMemoryProvider()
+	mgr := NewTestServer(mem)
 
+	mgr.StateProvider.CreateUser(api.NewDefaultUser("me"))
 	response, _ := mgr.StartActivity(context.TODO(), server.StartActivityParams{
 		UserName:       "me",
 		ActivityName:   "new",
 		StartString:    "0m",
 		EstimateString: "0m",
 	})
-	if mem.User.Activity.ActivityName != "new" {
-		t.Logf("ActivityName not updated. got %s", mem.User.Activity.ActivityName)
+	if mem.Data.User["me"].Activity.ActivityName != "new" {
+		t.Logf("ActivityName not updated. got %s", mem.Data.User["me"].Activity.ActivityName)
 		t.Fail()
 	}
 	if response.Activity.ActivityName != "new" {
@@ -79,33 +86,36 @@ func TestStartActivityWorks(t *testing.T) {
 }
 
 func TestExtendActivityWorks(t *testing.T) {
-	mem := providers.MemoryProvider{}
+	mem := providers.NewMemoryProvider()
 	dur, _ := time.ParseDuration("1h")
-	mgr := NewTestServer(&mem)
+	mgr := NewTestServer(mem)
 
+	mgr.StateProvider.CreateUser(api.NewDefaultUser("me"))
 	mgr.StartActivity(context.TODO(), server.StartActivityParams{
 		UserName:         "me",
 		ActivityName:     "new",
 		StartDuration:    dur,
 		EstimateDuration: dur,
 	})
-	ts1 := mem.User.Activity.ActivityTimer
+	ts1 := mem.Data.User["me"].Activity.ActivityTimer
 	mgr.ExtendActivity(context.TODO(), server.ExtendActivityParams{
 		UserName:         "me",
 		EstimateDuration: dur + dur,
 	})
-	if ts1 == mem.User.Activity.ActivityTimer {
+	if ts1 == mem.Data.User["me"].Activity.ActivityTimer {
 		t.Fatal("timestamp not updated")
 	}
 }
 
 func TestFinishActivityWorks(t *testing.T) {
-	mem := providers.MemoryProvider{Jobs: map[string]api.Job{}}
+	mem := providers.NewMemoryProvider()
 	dur, _ := time.ParseDuration("30m")
-	mgr := NewTestServer(&mem)
+	mgr := NewTestServer(mem)
 
+	mgr.StateProvider.CreateUser(api.NewDefaultUser("me"))
 	mgr.CreateJobIfMissing(context.TODO(), server.SearchJobParams{
 		Name:          "testwork",
+		Owner:         "me",
 		StartedAfter:  -24 * time.Hour,
 		StartedBefore: time.Duration(0),
 	})
@@ -116,7 +126,7 @@ func TestFinishActivityWorks(t *testing.T) {
 		EstimateDuration: dur,
 	})
 
-	act := mem.User.Activity
+	act := mem.Data.User["me"].Activity
 	if err := act.CheckActivityActive(); err != nil {
 		t.Fatal("StartActivity did not work", act)
 	}
@@ -127,7 +137,7 @@ func TestFinishActivityWorks(t *testing.T) {
 		ActivityName: "test",
 		EndDuration:  dur,
 	})
-	act = mem.User.Activity
+	act = mem.Data.User["me"].Activity
 	if fin_err != nil {
 		t.Logf("Expecting no Error, got %v", fin_err)
 		t.Fail()
@@ -140,7 +150,7 @@ func TestFinishActivityWorks(t *testing.T) {
 		t.Logf("FinishActivity returned %t", res.Success)
 		t.Fail()
 	}
-	work, ok := mem.Jobs["testwork"]
+	work, ok := mem.Data.Jobs["testwork"]
 	if !ok || len(work.Activities) != 1 {
 		t.Log("Job seems to be empty", work)
 		t.Fail()
@@ -149,10 +159,11 @@ func TestFinishActivityWorks(t *testing.T) {
 
 // Activities cannot be finish without a Job
 func TestFinishActivityFailsWithoutJob(t *testing.T) {
-	mem := providers.MemoryProvider{Jobs: map[string]api.Job{}}
+	mem := providers.NewMemoryProvider()
 	dur, _ := time.ParseDuration("30m")
-	mgr := NewTestServer(&mem)
+	mgr := NewTestServer(mem)
 
+	mgr.StateProvider.CreateUser(api.NewDefaultUser("me"))
 	mgr.StartActivity(context.TODO(), server.StartActivityParams{
 		UserName:         "me",
 		ActivityName:     "test",
@@ -160,7 +171,7 @@ func TestFinishActivityFailsWithoutJob(t *testing.T) {
 		EstimateDuration: dur,
 	})
 
-	act := mem.User.Activity
+	act := mem.Data.User["me"].Activity
 	if err := act.CheckActivityActive(); err != nil {
 		t.Fatal("StartActivity did not work", act)
 	}
@@ -171,7 +182,7 @@ func TestFinishActivityFailsWithoutJob(t *testing.T) {
 		ActivityName: "test",
 		EndDuration:  dur,
 	})
-	act = mem.User.Activity
+	act = mem.Data.User["me"].Activity
 	if err == nil {
 		t.Log("expected no error, got nothing")
 		t.Fail()
@@ -181,58 +192,5 @@ func TestFinishActivityFailsWithoutJob(t *testing.T) {
 	}
 	if err := act.CheckActivityActive(); err != nil {
 		t.Fatalf("Operation failed, but Activity still cleared. CheckActivityActive() returned %v", err)
-	}
-}
-
-func TestJobIfMissingWorks(t *testing.T) {
-	mem := providers.MemoryProvider{Jobs: map[string]api.Job{}}
-	mgr := NewTestServer(&mem)
-
-	res, err := mgr.CreateJobIfMissing(context.TODO(), server.SearchJobParams{
-		Name:          "testwork",
-		StartedAfter:  -24 * time.Hour,
-		StartedBefore: time.Duration(0),
-	})
-
-	if err != nil {
-		t.Logf("expected not error, got: %v", err)
-	}
-	if !res.Success {
-		t.Fatalf("response was not successful. got %t expected %t", res.Success, true)
-	}
-	if !res.Created {
-		t.Fatalf("response reported no Job created. got %t expected %t", res.Created, true)
-	}
-	if len(mem.Jobs) != 1 {
-		t.Fatalf("incorrect number of Jobs: got %d expected %d", len(mem.Jobs), 1)
-	}
-}
-
-func TestCreateJobIfMissingIsIdempotent(t *testing.T) {
-	mem := providers.MemoryProvider{Jobs: map[string]api.Job{}}
-	mgr := NewTestServer(&mem)
-
-	mgr.CreateJobIfMissing(context.TODO(), server.SearchJobParams{
-		Name:          "testwork",
-		StartedAfter:  -24 * time.Hour,
-		StartedBefore: time.Duration(0),
-	})
-	res2, err := mgr.CreateJobIfMissing(context.TODO(), server.SearchJobParams{
-		Name:          "testwork",
-		StartedAfter:  -24 * time.Hour,
-		StartedBefore: time.Duration(0),
-	})
-
-	if err != nil {
-		t.Logf("expected no error, got %v", err)
-	}
-	if !res2.Success {
-		t.Fatalf("response was not successful. got %t expected %t", res2.Success, true)
-	}
-	if res2.Created {
-		t.Fatalf("response reported no Job created. got %t expected %t", res2.Created, false)
-	}
-	if len(mem.Jobs) != 1 {
-		t.Fatalf("incorrect number of Jobs: got %d expected %d", len(mem.Jobs), 1)
 	}
 }

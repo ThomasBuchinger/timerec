@@ -2,20 +2,22 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/thomasbuchinger/timerec/api"
+	"github.com/thomasbuchinger/timerec/internal/server/providers"
 )
 
 type SearchJobParams struct {
 	Name          string        `json:"name"`
+	Owner         string        `json:"owner"`
 	StartedAfter  time.Duration `json:"start_after,omitempty" default:"-24h"`
 	StartedBefore time.Duration `json:"start_before,omitempty" default:"0s"`
 }
 
 type UpdateJobParams struct {
 	Name        string `json:"name,omitempty"`
+	Owner       string `json:"owner"`
 	Template    string `json:"template,omitempty"`
 	Title       string `json:"title,omitempty"`
 	Description string `json:"description,omitempty"`
@@ -43,21 +45,17 @@ type JobResponse struct {
 
 func (mgr *TimerecServer) GetJob(ctx context.Context, params SearchJobParams) (JobResponse, error) {
 	item, err := mgr.StateProvider.GetJob(api.Job{
-		Name: params.Name,
+		Name:  params.Name,
+		Owner: params.Owner,
 	})
 	if err == nil {
 		return JobResponse{Success: true, Created: false, Job: item}, nil
 	}
-	if err != nil && err.Error() == "NOT_FOUND" {
+	if err != nil && err.Error() == string(providers.ProviderErrorNotFound) {
 		return JobResponse{Success: false, Created: false, Job: api.Job{}}, nil
 	}
 
-	mgr.Logger.Error(err)
-	return JobResponse{}, ResponseError{
-		Type:    ProviderError,
-		Message: fmt.Sprintf("Unable to find Job '%s'", item.Name),
-		Cause:   err,
-	}
+	return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Error querying Job '%s'", item.Name)
 }
 
 func (mgr *TimerecServer) CreateJobIfMissing(ctx context.Context, params SearchJobParams) (JobResponse, error) {
@@ -70,14 +68,9 @@ func (mgr *TimerecServer) CreateJobIfMissing(ctx context.Context, params SearchJ
 		return response, nil
 	}
 
-	new, err := mgr.StateProvider.CreateJob(api.NewJob(params.Name))
+	new, err := mgr.StateProvider.CreateJob(api.NewJob(params.Name, params.Owner))
 	if err != nil {
-		mgr.Logger.Error(err)
-		return JobResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: fmt.Sprintf("Unable to create Job '%s'", params.Name),
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to create Job '%s'", params.Name)
 	}
 	mgr.Logger.Infof("Created Job: %s", new.Name)
 	return JobResponse{Success: true, Created: true, Job: new}, nil
@@ -87,18 +80,14 @@ func (mgr *TimerecServer) UpdateJob(ctx context.Context, params UpdateJobParams)
 	// Check if Job exists
 	response, err := mgr.GetJob(
 		ctx,
-		SearchJobParams{Name: params.Name, StartedAfter: -24 * time.Hour, StartedBefore: time.Duration(0)},
+		SearchJobParams{Name: params.Name, Owner: params.Owner, StartedAfter: -24 * time.Hour, StartedBefore: time.Duration(0)},
 	)
 	if err != nil {
 		return JobResponse{}, err
 	}
 	if !response.Success {
 		mgr.Logger.Warnf("Job with name '%s' does not exist", params.Name)
-		return JobResponse{}, ResponseError{
-			Type:    BadRequest,
-			Message: "Job does not exist",
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(BadRequest, err, "Job deos not exist")
 	}
 
 	// Update job according to Template
@@ -127,13 +116,7 @@ func (mgr *TimerecServer) UpdateJob(ctx context.Context, params UpdateJobParams)
 
 	saved, err := mgr.StateProvider.UpdateJob(job)
 	if err != nil {
-		mgr.Logger.Error(err)
-
-		return JobResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: "Unable to save Job",
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to save Job '%s'", job.Name)
 	}
 	mgr.Logger.Infof("Updated Job: %s", saved.Name)
 	return JobResponse{Success: true, Created: false, Job: saved}, nil
@@ -148,44 +131,25 @@ func (mgr *TimerecServer) CompleteJob(ctx context.Context, params CompleteJobPar
 		return JobResponse{}, err
 	}
 	if !response.Success {
-		mgr.Logger.Error("Unable to find Job")
-		return JobResponse{}, ResponseError{
-			Type:    BadRequest,
-			Message: "Job does not exist",
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(BadRequest, err, "Job does not exist")
 	}
 	Job := response.Job
 	err = Job.Validate()
 	if err != nil {
-		mgr.Logger.Errorf("Job not valid: %s", err.Error())
-		return JobResponse{}, ResponseError{
-			Type:    ValidationError,
-			Message: err.Error(),
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ValidationError, err, "Job not valid: %s", err.Error())
 	}
 
 	for _, rec := range Job.ConvertToRecords() {
 		_, err = mgr.TimeProvider.SaveRecord(rec)
 		if err != nil {
 			mgr.Logger.Errorw("unable to save Record", "error", err, "record", rec, "title", rec.Title)
-			return JobResponse{}, ResponseError{
-				Type:    ProviderError,
-				Message: fmt.Sprintf("Unable to save Record '%s'", rec.Title),
-				Cause:   err,
-			}
+			return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to save Record '%s'", rec.Title)
 		}
 	}
 
 	deleted, err := mgr.StateProvider.DeleteJob(Job)
 	if err != nil {
-		mgr.Logger.Error(err)
-		return JobResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: "Unable to delete Job",
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to delete Job")
 	}
 
 	mgr.Logger.Infof("Completed Job: %s", Job.Name)

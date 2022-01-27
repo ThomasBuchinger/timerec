@@ -29,7 +29,9 @@ type TimerecServerConfig struct {
 }
 
 type State interface {
-	GetUser() (api.User, error)
+	ListUsers() ([]api.User, error)
+	GetUser(api.User) (api.User, error)
+	CreateUser(api.User) (api.User, error)
 	UpdateUser(api.User) (api.User, error)
 
 	CreateJob(api.Job) (api.Job, error)
@@ -64,6 +66,16 @@ func (r ResponseError) Error() string {
 	return fmt.Sprintf("%s: %v", r.Type, r.Cause)
 }
 
+func (mgr *TimerecServer) MakeNewResponseError(t ResponseErrorType, err error, message string, values ...interface{}) ResponseError {
+	respErr := ResponseError{
+		Type:    t,
+		Message: fmt.Sprintf(message, values...),
+		Cause:   err,
+	}
+	mgr.Logger.Error(respErr)
+	return respErr
+}
+
 const (
 	BadRequest      ResponseErrorType = "BAD_REQUEST"
 	ValidationError ResponseErrorType = "VALIDATION_FAILED"
@@ -80,7 +92,7 @@ func NewServer() TimerecServer {
 	}
 	SetDefaultConfig(&settings)
 
-	fileBackend := &providers.FileProvider{}
+	fileBackend := &providers.FileProvider{Path: "db.yaml"}
 
 	var chatService NotificationService
 	var rocketConfig providers.RocketChatConfig
@@ -90,7 +102,7 @@ func NewServer() TimerecServer {
 		chatService = &rocket
 		logger.Sugar().Debug("Using RocketChat NotificationService")
 	} else {
-		chatService = &providers.MemoryProvider{}
+		chatService = providers.NewMemoryProvider()
 		logger.Sugar().Debug("Using Noop NotificationService")
 	}
 

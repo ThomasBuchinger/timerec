@@ -6,11 +6,17 @@ import (
 )
 
 type User struct {
+	Name     string
+	Inactive bool
 	Activity Activity
 	Settings Settings
 }
 type Settings struct {
-	RoundTo time.Duration
+	HelloTimer      time.Duration `json:"hello_timer,omitempty"`
+	DefaultEstimate time.Duration `json:"default_estimate,omitempty"`
+	RoundTo         time.Duration `json:"round_to,omitempty"`
+	MissedWorkAlarm time.Duration `json:"alarm,omitempty"`
+	Weekdays        []string      `json:"weekdays,omitempty"`
 }
 
 type Activity struct {
@@ -34,6 +40,27 @@ func (a *Activity) CheckNoActivityActive() error {
 	return nil
 }
 
+func NewDefaultUser(name string) User {
+	roundTo, _ := time.ParseDuration("15m")
+	missedWorkAlarm, _ := time.ParseDuration("12h")
+	defaultEstimate, _ := time.ParseDuration("1h")
+	helloTimer, _ := time.ParseDuration("1h")
+
+	new := User{
+		Name:     name,
+		Inactive: false,
+		Activity: Activity{},
+		Settings: Settings{
+			RoundTo:         roundTo,
+			HelloTimer:      helloTimer,
+			DefaultEstimate: defaultEstimate,
+			MissedWorkAlarm: missedWorkAlarm,
+			Weekdays:        []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"},
+		},
+	}
+	return new
+}
+
 func (a *Activity) AddComment(comment string) {
 	if comment == "" {
 		return
@@ -50,14 +77,6 @@ func (p *User) SetActivity(name string, comment string, start time.Time, timer t
 	p.Activity.ActivityComment = comment
 	p.Activity.ActivityStart = start
 	p.Activity.ActivityTimer = timer
-}
-
-func (p *User) GetRoundTo() time.Duration {
-	if p.Settings.RoundTo == time.Duration(0) {
-		ret, _ := time.ParseDuration("5m")
-		return ret
-	}
-	return p.Settings.RoundTo
 }
 
 func (p *User) ClearActivity() {

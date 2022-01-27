@@ -6,7 +6,8 @@ import (
 )
 
 type Job struct {
-	Name           string    `yaml:"task_name" json:"job_name"`
+	Name           string    `yaml:"job_name" json:"job_name"`
+	Owner          string    `yaml:"owner" json:"owner"`
 	CreatedAt      time.Time `yaml:"created,omitempty" json:"created,omitempty"`
 	RecordTemplate `yaml:",inline" json:",inline"`
 
@@ -27,9 +28,10 @@ type TimeEntry struct {
 	End     time.Time `yaml:"end,omitempty" json:"end,omitempty"`
 }
 
-func NewJob(name string) Job {
+func NewJob(name string, owner string) Job {
 	return Job{
 		Name:      name,
+		Owner:     owner,
 		CreatedAt: time.Now(),
 	}
 }
@@ -69,6 +71,7 @@ func (t *Job) ConvertToRecords() []Record {
 		}
 
 		records = append(records, Record{
+			UserName:    t.Owner,
 			Title:       t.Title,
 			Description: desc,
 			Project:     t.RecordTemplate.Project,

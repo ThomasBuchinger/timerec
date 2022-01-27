@@ -2,10 +2,14 @@ package server
 
 import (
 	"context"
+	"errors"
+	"math"
 	"path"
 	"reflect"
 	"runtime"
 	"time"
+
+	"github.com/thomasbuchinger/timerec/api"
 )
 
 type ReconcileResult struct {
@@ -14,24 +18,65 @@ type ReconcileResult struct {
 	Error       error
 }
 
-func (mgr *TimerecServer) Reconcile() {
-	reconcilers := []func(context.Context) ReconcileResult{
+func (mgr *TimerecServer) ReconcileForever(ctx context.Context) {
+	defaultInterval, _ := time.ParseDuration("5m")
+
+	for {
+		result := mgr.ReconcileOnce(ctx)
+
+		if result.Requeue && result.RetryAfter < defaultInterval {
+			SleepWithContext(ctx, result.RetryAfter)
+		} else {
+			SleepWithContext(ctx, defaultInterval)
+		}
+	}
+
+}
+
+func (mgr *TimerecServer) ReconcileOnce(ctx context.Context) ReconcileResult {
+	// userReconcilers run per User and get a User object in their context
+	userReconcilers := []func(context.Context) ReconcileResult{
 		mgr.reconcileTimer,
 		mgr.reconcileBegin,
 		// mgr.reconcileTest,
 	}
-	ctx := context.Background()
-	returns := make(chan bool)
-	for _, f := range reconcilers {
-		// this should run as go-routine, but that swallows logging
+	// globalReconilers do not depend on a User
+	globalReconcilers := []func(context.Context) ReconcileResult{}
+
+	// Start Reconcilers
+	var runningReconcilers int = 0
+	returns := make(chan ReconcileResult)
+	userList, _ := mgr.StateProvider.ListUsers()
+	for _, f := range userReconcilers {
+		for _, user := range userList {
+
+			newCtx := context.WithValue(ctx, "user", user)
+			go mgr.runReconcile(newCtx, returns, f)
+			runningReconcilers++
+		}
+	}
+	for _, f := range globalReconcilers {
+
 		go mgr.runReconcile(ctx, returns, f)
+		runningReconcilers++
 	}
-	for range reconcilers {
-		<-returns
+
+	// Collect ReconcileResult as the reconcilers finish
+	runResult := ReconcileResult{Requeue: false, RetryAfter: time.Duration(math.MaxInt64)}
+	var funcResult ReconcileResult
+	for i := 0; i < runningReconcilers; i++ {
+		funcResult = <-returns
+
+		runResult.Ok = runResult.Ok && funcResult.Ok
+		runResult.Requeue = runResult.Requeue || funcResult.Requeue
+		if funcResult.Requeue && funcResult.RetryAfter < runResult.RetryAfter {
+			runResult.RetryAfter = funcResult.RetryAfter
+		}
 	}
+	return runResult // Global ReconcileResult
 }
 
-func (mgr *TimerecServer) runReconcile(ctx context.Context, c chan bool, reconcileFunc func(context.Context) ReconcileResult) {
+func (mgr *TimerecServer) runReconcile(ctx context.Context, c chan ReconcileResult, reconcileFunc func(context.Context) ReconcileResult) {
 	logger := mgr.Logger.Named("Reconciler")
 
 	// predefine a result variable to be reused.
@@ -45,7 +90,7 @@ func (mgr *TimerecServer) runReconcile(ctx context.Context, c chan bool, reconci
 		select {
 		// Stop Execution if Context expired
 		case <-ctx.Done():
-			c <- false
+			c <- ReconcileResult{Ok: false, Requeue: false}
 			return
 		default:
 			// Log Errurs
@@ -56,18 +101,7 @@ func (mgr *TimerecServer) runReconcile(ctx context.Context, c chan bool, reconci
 				logger.Infof("error in function '%s': %s", funcName, result.Error.Error())
 			}
 
-			// Requeue if required
-			if !result.Requeue {
-				// Done. return from function
-				logger.Infof("Reconciled %s", funcName)
-				c <- true
-				return
-			} else {
-				// log, wait and continue infinite loop
-				logger.Infof("requeueing %s", funcName)
-				SleepWithContext(ctx, result.RetryAfter)
-				continue
-			}
+			c <- result
 		}
 	}
 }
@@ -79,10 +113,10 @@ func SleepWithContext(ctx context.Context, delay time.Duration) {
 	}
 }
 
-func (mgr *TimerecServer) reconcileTimer(_ctx context.Context) ReconcileResult {
-	user, err := mgr.StateProvider.GetUser()
-	if err != nil {
-		return ReconcileResult{Error: err}
+func (mgr *TimerecServer) reconcileTimer(ctx context.Context) ReconcileResult {
+	user, ok := ctx.Value("user").(api.User)
+	if !ok {
+		return ReconcileResult{Error: errors.New("Unable to read user from Context")}
 	}
 	if user.Activity.ActivityTimer.IsZero() {
 		return ReconcileResult{Ok: true} // No Timer Set, Nothing to do
@@ -101,9 +135,13 @@ func (mgr *TimerecServer) reconcileTimer(_ctx context.Context) ReconcileResult {
 	return ReconcileResult{Ok: true}
 }
 
-func (mgr *TimerecServer) reconcileBegin(_ctx context.Context) ReconcileResult {
+func (mgr *TimerecServer) reconcileBegin(ctx context.Context) ReconcileResult {
+	user, ok := ctx.Value("user").(api.User)
+	if !ok {
+		return ReconcileResult{Error: errors.New("Unable to read user from Context")}
+	}
 	now := time.Now()
-	weekdays := mgr.Settings.Settings.Weekdays
+	weekdays := user.Settings.Weekdays
 
 	// Check for Weekdays
 	isWeekday := false
@@ -118,7 +156,7 @@ func (mgr *TimerecServer) reconcileBegin(_ctx context.Context) ReconcileResult {
 	}
 
 	day, _ := time.ParseDuration("1d")
-	alarm := time.Now().Local().Truncate(day).Add(mgr.Settings.Settings.MissedWorkAlarm)
+	alarm := time.Now().Local().Truncate(day).Add(user.Settings.MissedWorkAlarm)
 	if now.Before(alarm) {
 		return ReconcileResult{Ok: true, Requeue: true, RetryAfter: time.Until(alarm)}
 	}

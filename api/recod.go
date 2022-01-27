@@ -4,6 +4,7 @@ import "time"
 
 type Record struct {
 	Id          string
+	UserName    string
 	Title       string
 	Description string
 	Project     string

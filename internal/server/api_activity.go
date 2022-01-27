@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/thomasbuchinger/timerec/api"
+	"github.com/thomasbuchinger/timerec/internal/server/providers"
 )
 
 type GetUserParams struct {
@@ -87,66 +88,43 @@ type ActivityResponse struct {
 }
 
 func (mgr *TimerecServer) GetActivity(ctx context.Context, params GetUserParams) (ActivityResponse, error) {
-	user, err := mgr.StateProvider.GetUser()
-	if err != nil {
-		err := ResponseError{
-			Type:    ProviderError,
-			Message: fmt.Sprintf("Cannot read User '%s'", params.UserName),
-			Cause:   err,
-		}
-		mgr.Logger.Error(err)
-		return ActivityResponse{}, err
+	user, err := mgr.StateProvider.GetUser(api.User{Name: params.UserName})
+	if err == nil {
+		return ActivityResponse{Success: true, Activity: user.Activity}, nil
 	}
-	return ActivityResponse{Success: true, Activity: user.Activity}, nil
+
+	if err.Error() == string(providers.ProviderErrorNotFound) {
+		return ActivityResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Cannot read User '%s'", params.UserName)
+	}
+	return ActivityResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unexpected Error: %s", params.UserName)
 }
 
 func (mgr *TimerecServer) StartActivity(ctx context.Context, params StartActivityParams) (ActivityResponse, error) {
 	err := params.MakeValid()
 	if err != nil {
-		return ActivityResponse{}, ResponseError{
-			Type:    ValidationError,
-			Message: err.Error(),
-			Cause:   err,
-		}
+		return ActivityResponse{}, mgr.MakeNewResponseError(ValidationError, err, err.Error())
 	}
 
-	user, err := mgr.StateProvider.GetUser()
+	user, err := mgr.StateProvider.GetUser(api.User{Name: params.UserName})
 	if err != nil {
-		resp := ResponseError{
-			Type:    ProviderError,
-			Message: fmt.Sprintf("Cannot read User '%s'", params.UserName),
-			Cause:   err,
-		}
-		mgr.Logger.Error(err)
-		return ActivityResponse{}, resp
+		return ActivityResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Cannot read User '%s'", params.UserName)
 	}
 	err = user.Activity.CheckNoActivityActive()
 	if err != nil {
-		resp := ResponseError{
-			Type:    BadRequest,
-			Message: "Finish any active Jobs, before starting a new one",
-			Cause:   err,
-		}
 		mgr.Logger.Debugf("Cannot start new Activity: %v", err)
-		return ActivityResponse{}, resp
+		return ActivityResponse{}, mgr.MakeNewResponseError(BadRequest, err, "Finish any active Jobs, before starting a new one")
 	}
 
 	mgr.Logger.Debugf("Setting active Activity to '%s'...", params.ActivityName)
 	user.SetActivity(
 		params.ActivityName,
 		params.Comment,
-		time.Now().Add(params.StartDuration).Round(user.GetRoundTo()),
-		time.Now().Add(params.EstimateDuration).Round(user.GetRoundTo()),
+		time.Now().Add(params.StartDuration).Round(user.Settings.RoundTo),
+		time.Now().Add(params.EstimateDuration).Round(user.Settings.RoundTo),
 	)
 	saved, err := mgr.StateProvider.UpdateUser(user)
 	if err != nil {
-		resp := ResponseError{
-			Type:    ProviderError,
-			Message: "Error updating User",
-			Cause:   err,
-		}
-		mgr.Logger.Error(err)
-		return ActivityResponse{}, resp
+		return ActivityResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Cannot update User: %v", err)
 	}
 	mgr.Logger.Infof("Start working on: %s", params.ActivityName)
 	return ActivityResponse{Success: true, Activity: saved.Activity}, nil
@@ -155,31 +133,22 @@ func (mgr *TimerecServer) StartActivity(ctx context.Context, params StartActivit
 func (mgr *TimerecServer) ExtendActivity(ctx context.Context, params ExtendActivityParams) (ActivityResponse, error) {
 	err := params.MakeValid()
 	if err != nil {
-		return ActivityResponse{}, ResponseError{
-			Type:    ValidationError,
-			Message: err.Error(),
-			Cause:   err,
-		}
+		return ActivityResponse{}, mgr.MakeNewResponseError(ValidationError, err, "Invalid Request: %s", err.Error())
 	}
 
-	user, err := mgr.StateProvider.GetUser()
+	// Get Activity
+	user, err := mgr.StateProvider.GetUser(api.User{Name: params.UserName})
 	if err != nil {
 		mgr.Logger.Error(err)
-		return ActivityResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: fmt.Sprintf("Cannot read User '%s'", params.UserName),
-			Cause:   err,
-		}
+		return ActivityResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Cannot read User '%s'", params.UserName)
 	}
 	err = user.Activity.CheckActivityActive()
 	if err != nil {
 		mgr.Logger.Debugf("no active Activity: %v", err)
-		return ActivityResponse{}, ResponseError{
-			Type:    BadRequest,
-			Message: "Cannot extent timer: no active Job",
-			Cause:   err,
-		}
+		return ActivityResponse{}, mgr.MakeNewResponseError(BadRequest, err, "Cannot extent timer: no active Job")
 	}
+
+	// Update Activity
 	if params.ResetComment {
 		user.Activity.ActivityComment = params.Comment
 	} else {
@@ -193,12 +162,7 @@ func (mgr *TimerecServer) ExtendActivity(ctx context.Context, params ExtendActiv
 	)
 	saved, err := mgr.StateProvider.UpdateUser(user)
 	if err != nil {
-		mgr.Logger.Error(err)
-		return ActivityResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: fmt.Sprintf("Unable to save User '%s'", params.UserName),
-			Cause:   err,
-		}
+		return ActivityResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to save User '%s'", params.UserName)
 	}
 
 	mgr.Logger.Infof("Extend Activity %s by: %s", user.Activity.ActivityName, params.EstimateDuration)
@@ -208,16 +172,12 @@ func (mgr *TimerecServer) ExtendActivity(ctx context.Context, params ExtendActiv
 func (mgr *TimerecServer) FinishActivity(ctx context.Context, params FinishActivityParams) (JobResponse, error) {
 	err := params.MakeValid()
 	if err != nil {
-		return JobResponse{}, ResponseError{
-			Type:    ValidationError,
-			Message: err.Error(),
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ValidationError, err, err.Error())
 	}
 
 	response, err := mgr.GetJob(
 		ctx,
-		SearchJobParams{Name: params.JobName, StartedAfter: -24 * time.Hour, StartedBefore: 0},
+		SearchJobParams{Name: params.JobName, Owner: params.UserName, StartedAfter: -24 * time.Hour, StartedBefore: 0},
 	)
 	if err != nil {
 		return JobResponse{}, err
@@ -229,14 +189,9 @@ func (mgr *TimerecServer) FinishActivity(ctx context.Context, params FinishActiv
 		job_is_missing = true
 	}
 
-	user, err := mgr.StateProvider.GetUser()
+	user, err := mgr.StateProvider.GetUser(api.User{Name: params.UserName})
 	if err != nil {
-		mgr.Logger.Error(err)
-		return JobResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: fmt.Sprintf("Cannot read User '%s'", params.UserName),
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Cannot read User '%s'", params.UserName)
 	}
 	err = user.Activity.CheckActivityActive()
 	if err != nil {
@@ -251,35 +206,27 @@ func (mgr *TimerecServer) FinishActivity(ctx context.Context, params FinishActiv
 		}
 	}
 
+	// Update Job & User
 	user.Activity.AddComment(params.Comment)
 	job.Update(api.Job{
 		Name: job.Name,
 		Activities: []api.TimeEntry{
 			{
 				Start:   user.Activity.ActivityStart,
-				End:     time.Now().Add(params.EndDuration).Round(user.GetRoundTo()),
+				End:     time.Now().Add(params.EndDuration).Round(user.Settings.RoundTo),
 				Comment: user.Activity.ActivityComment,
 			},
 		},
 	})
 	saved, err := mgr.StateProvider.UpdateJob(job)
 	if err != nil {
-		mgr.Logger.Error(err)
-		return JobResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: fmt.Sprintf("Unable to update Job '%s'", job.Name),
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to update Job '%s'", job.Name)
 	}
 	user.ClearActivity()
 	_, err = mgr.StateProvider.UpdateUser(user)
 	if err != nil {
 		mgr.Logger.Error(err)
-		return JobResponse{}, ResponseError{
-			Type:    ProviderError,
-			Message: "Unable to update User",
-			Cause:   err,
-		}
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to update user '%s'", user.Name)
 	}
 
 	mgr.Logger.Infof("Finished Activity on Job: %s", saved.Name)

@@ -42,7 +42,23 @@ func (c *ClientObject) exitIfError(err error, success bool, message string) {
 
 }
 
+func (c *ClientObject) EnsureUserExists(name string) {
+	resp, err := c.embeddedServer.CreateUserIfMissing(
+		context.TODO(),
+		server.SearchUserParams{
+			Name:     name,
+			Inactive: false,
+		},
+	)
+	c.exitIfError(err, resp.Success, "Unable to create User")
+
+	if resp.Created {
+		c.logger.Printf("Creating User '%s'...\n", name)
+	}
+}
+
 func (c *ClientObject) StartActivity(activityName string, comment string, start_duration time.Duration, estimate_duration time.Duration) {
+	c.EnsureUserExists("me")
 	resp, err := c.embeddedServer.StartActivity(
 		context.TODO(),
 		server.StartActivityParams{
@@ -58,6 +74,7 @@ func (c *ClientObject) StartActivity(activityName string, comment string, start_
 }
 
 func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment string, reset bool) {
+	c.EnsureUserExists("me")
 	resp, err := c.embeddedServer.ExtendActivity(
 		context.TODO(),
 		server.ExtendActivityParams{
@@ -72,6 +89,7 @@ func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment s
 }
 
 func (c *ClientObject) FinishActivity(taskName string, _activityName string, comment string, endDuration time.Duration) {
+	c.EnsureUserExists("me")
 	resp, err := c.embeddedServer.FinishActivity(
 		context.TODO(),
 		server.FinishActivityParams{
@@ -87,6 +105,7 @@ func (c *ClientObject) FinishActivity(taskName string, _activityName string, com
 
 func (c *ClientObject) ActivityInfo() {
 	resp := server.ActivityResponse{}
+	c.EnsureUserExists("me")
 	resp, err := c.embeddedServer.GetActivity(
 		context.TODO(),
 		server.GetUserParams{
@@ -161,5 +180,10 @@ func (c *ClientObject) Wait() {
 }
 
 func (c *ClientObject) ReconcileServer() {
-	c.embeddedServer.Reconcile()
+	result := c.embeddedServer.ReconcileOnce(context.TODO())
+	if result.Requeue {
+		time.AfterFunc(result.RetryAfter, func() {
+			c.embeddedServer.ReconcileOnce(context.TODO())
+		})
+	}
 }
