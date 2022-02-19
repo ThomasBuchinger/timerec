@@ -174,7 +174,7 @@ func (store *FileProvider) SaveRecord(rec api.Record) (api.Record, error) {
 }
 
 func (store *FileProvider) NotifyUser(event api.Event) error {
-	fmt.Printf("Event: %s/%s: %s\n", event.Target, event.Name, event.Message)
+	fmt.Printf("Event: %s/%s/%s: %s\n", event.User, event.Target, event.Name, event.Message)
 	return nil
 }
 

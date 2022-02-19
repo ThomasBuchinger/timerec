@@ -19,10 +19,12 @@ type RocketChatMessenger struct {
 }
 
 type RocketChatConfig struct {
-	Url, User, Token string
-	Settings         struct {
+	Url      string `yaml:"url"`
+	User     string `yaml:"user"`
+	Token    string `yaml:"token"`
+	Settings struct {
 		LoggerPrefix string `yaml:"loggerPrefix"`
-		Channel      string
+		Channel      string `yaml:"channel"`
 	}
 	UserMappings     map[string]string `yaml:"userMappings"`
 	MessageTemplates map[string]string `yaml:"messageTemplates"`

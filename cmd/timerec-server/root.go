@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -29,8 +30,11 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
+	serverContext, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	server := server.NewServer()
+	go server.ReconcileForever(serverContext)
 	restapi.Run(&server)
 }
 
@@ -56,7 +60,7 @@ func initConfig() {
 		viper.AddConfigPath(currentDir)
 		viper.SetConfigType("yaml")
 		viper.SetConfigName(".timerec")
-		viper.SetConfigName("timerec-config.yaml")
+		viper.SetConfigName("timerec-config")
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match

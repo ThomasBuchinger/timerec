@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"path"
 	"reflect"
@@ -17,6 +18,13 @@ type ReconcileResult struct {
 	RetryAfter  time.Duration
 	Error       error
 }
+
+type reconcileContext string
+
+const (
+	reconcileScope reconcileContext = "scope"
+	reconcileUser  reconcileContext = "user"
+)
 
 func (mgr *TimerecServer) ReconcileForever(ctx context.Context) {
 	defaultInterval, _ := time.ParseDuration("5m")
@@ -49,15 +57,22 @@ func (mgr *TimerecServer) ReconcileOnce(ctx context.Context) ReconcileResult {
 	userList, _ := mgr.StateProvider.ListUsers()
 	for _, f := range userReconcilers {
 		for _, user := range userList {
-
-			newCtx := context.WithValue(ctx, "user", user)
+			newCtx := context.WithValue(
+				context.WithValue(
+					ctx,
+					reconcileUser,
+					user,
+				),
+				reconcileScope,
+				fmt.Sprint("user/"+user.Name),
+			)
 			go mgr.runReconcile(newCtx, returns, f)
 			runningReconcilers++
 		}
 	}
 	for _, f := range globalReconcilers {
-
-		go mgr.runReconcile(ctx, returns, f)
+		newctx := context.WithValue(ctx, reconcileScope, "global")
+		go mgr.runReconcile(newctx, returns, f)
 		runningReconcilers++
 	}
 
@@ -82,27 +97,26 @@ func (mgr *TimerecServer) runReconcile(ctx context.Context, c chan ReconcileResu
 	// predefine a result variable to be reused.
 	result := ReconcileResult{Ok: true, Requeue: false, RetryAfter: 0, Error: nil}
 	fullFuncName := runtime.FuncForPC(reflect.ValueOf(reconcileFunc).Pointer()).Name()
-	funcName := path.Base(fullFuncName)
-	for {
+	funcName := path.Ext(fullFuncName)
 
-		// run reconcile function
-		result = reconcileFunc(ctx)
-		select {
-		// Stop Execution if Context expired
-		case <-ctx.Done():
-			c <- ReconcileResult{Ok: false, Requeue: false}
-			return
-		default:
-			// Log Errurs
-			if !result.Ok && result.Error == nil {
-				logger.Infof("function returned NOT Ok, but returned no error %s", funcName)
-			}
-			if result.Error != nil {
-				logger.Infof("error in function '%s': %s", funcName, result.Error.Error())
-			}
-
-			c <- result
+	mgr.Logger.Debugf("Running Reconciler: %v / %s", ctx.Value(reconcileScope), funcName)
+	// run reconcile function
+	result = reconcileFunc(ctx)
+	select {
+	// Stop Execution if Context expired
+	case <-ctx.Done():
+		c <- ReconcileResult{Ok: false, Requeue: false}
+		return
+	default:
+		// Log Errurs
+		if !result.Ok && result.Error == nil {
+			logger.Infof("function returned NOT Ok, but returned no error %s", funcName)
 		}
+		if result.Error != nil {
+			logger.Infof("error in function '%s': %s", funcName, result.Error.Error())
+		}
+
+		c <- result
 	}
 }
 
@@ -114,9 +128,9 @@ func SleepWithContext(ctx context.Context, delay time.Duration) {
 }
 
 func (mgr *TimerecServer) reconcileTimer(ctx context.Context) ReconcileResult {
-	user, ok := ctx.Value("user").(api.User)
+	user, ok := ctx.Value(reconcileUser).(api.User)
 	if !ok {
-		return ReconcileResult{Error: errors.New("Unable to read user from Context")}
+		return ReconcileResult{Error: errors.New("unable to read user from Context")}
 	}
 	if user.Activity.ActivityTimer.IsZero() {
 		return ReconcileResult{Ok: true} // No Timer Set, Nothing to do
@@ -136,9 +150,9 @@ func (mgr *TimerecServer) reconcileTimer(ctx context.Context) ReconcileResult {
 }
 
 func (mgr *TimerecServer) reconcileBegin(ctx context.Context) ReconcileResult {
-	user, ok := ctx.Value("user").(api.User)
+	user, ok := ctx.Value(reconcileUser).(api.User)
 	if !ok {
-		return ReconcileResult{Error: errors.New("Unable to read user from Context")}
+		return ReconcileResult{Error: errors.New("unable to read user from Context")}
 	}
 	now := time.Now()
 	weekdays := user.Settings.Weekdays
@@ -155,11 +169,14 @@ func (mgr *TimerecServer) reconcileBegin(ctx context.Context) ReconcileResult {
 		return ReconcileResult{Ok: true}
 	}
 
-	day, _ := time.ParseDuration("1d")
+	day, _ := time.ParseDuration("24h")
 	alarm := time.Now().Local().Truncate(day).Add(user.Settings.MissedWorkAlarm)
 	if now.Before(alarm) {
 		return ReconcileResult{Ok: true, Requeue: true, RetryAfter: time.Until(alarm)}
 	}
+
+	// We are past the alarm. Did we started working already?
+	// TODO implement Work Check
 
 	event := MakeEvent("NO_ENTRY_ALARM", "No work logged today!", "activity@none", "me")
 	err := mgr.ChatProvider.NotifyUser(event)

@@ -84,7 +84,8 @@ const (
 )
 
 func NewServer() TimerecServer {
-	logger, _ := zap.NewProduction()
+	// logger, _ := zap.NewProduction()
+	logger, _ := zap.NewDevelopment()
 	var settings TimerecServerConfig
 	err := viper.Unmarshal(&settings)
 	if err != nil {
@@ -97,7 +98,7 @@ func NewServer() TimerecServer {
 	var chatService NotificationService
 	var rocketConfig providers.RocketChatConfig
 	err = viper.UnmarshalKey("rocketchat", &rocketConfig)
-	if err == nil {
+	if err == nil && rocketConfig.Url != "" {
 		rocket := providers.NewRocketChatMessenger(rocketConfig)
 		chatService = &rocket
 		logger.Sugar().Debug("Using RocketChat NotificationService")
