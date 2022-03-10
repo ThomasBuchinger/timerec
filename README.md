@@ -2,14 +2,17 @@
 Beware: work in progress. Compile at your own risk
 
 ### Setup
-Compile the binary with `go build`. Once compiled create a "db.yaml" file. This is where timerec stores state between invocations.
+Compile the binary with `go build ./...`. Once compiled create a "db.yaml" file. This is where timerec stores state between invocations.
 
 ```yaml
 # db.yaml
-user: {}
-tasks: {}
-records: []
+me:
+  users: []
+  jobs: []
+  templates: []
+  records: []
 ```
+
 ### Usage
 As a user, there are mostly 2 concepts to understand. There is **one default activity**, that is used to track the currently active task. **Tasks** are whatever work you do on a given day (e.g. working for projects, meetings, appointments, ...). There can be more tasks, however they should all be done at the end of the day. Tasks are what ultimately written to the Backend.
 
