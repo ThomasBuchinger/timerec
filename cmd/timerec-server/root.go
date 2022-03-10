@@ -21,23 +21,23 @@ var cfgFile string
 var rootCmd = &cobra.Command{
 	Use:   "timerec-server",
 	Short: "timerec server process",
-	// Run: func(cmd *cobra.Command, args []string) {
-	// 	cli.FinishActivity("hello", "hello", "comment", defaultEstimate)
-	// },
+	Run: func(cmd *cobra.Command, args []string) {
+		serverContext, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		server := server.NewServer()
+		go server.ReconcileForever(serverContext)
+		restapi.Run(&server)
+	},
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	cobra.CheckErr(rootCmd.Execute())
-	serverContext, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	server := server.NewServer()
-	go server.ReconcileForever(serverContext)
-	restapi.Run(&server)
 }
 
+// init is called by go on package initialization
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.timerec.yaml)")
@@ -64,6 +64,7 @@ func initConfig() {
 	}
 
 	viper.AutomaticEnv() // read in environment variables that match
+	viper.RegisterAlias("kubeconfig", "kubernetes.kubeconfig")
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {

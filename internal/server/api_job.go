@@ -44,21 +44,31 @@ type JobResponse struct {
 }
 
 func (mgr *TimerecServer) GetJob(ctx context.Context, params SearchJobParams) (JobResponse, error) {
-	item, err := mgr.StateProvider.GetJob(api.Job{
+	state, err := mgr.StateProvider.Refresh(params.Owner)
+	if err != nil {
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to query Provider: %s", err.Error())
+	}
+
+	item, proverr := providers.GetJob(&state, api.Job{
 		Name:  params.Name,
 		Owner: params.Owner,
 	})
-	if err == nil {
+	if proverr == providers.ProviderOk {
 		return JobResponse{Success: true, Created: false, Job: item}, nil
 	}
-	if err != nil && err.Error() == string(providers.ProviderErrorNotFound) {
+	if proverr == providers.ProviderNotFound {
 		return JobResponse{Success: false, Created: false, Job: api.Job{}}, nil
 	}
 
-	return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Error querying Job '%s'", item.Name)
+	return JobResponse{}, mgr.MakeNewResponseError(BadRequest, proverr, "Error querying Job '%s'", item.Name)
 }
 
 func (mgr *TimerecServer) CreateJobIfMissing(ctx context.Context, params SearchJobParams) (JobResponse, error) {
+	state, err := mgr.StateProvider.Refresh(params.Owner)
+	if err != nil {
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to query Provider: %s", err.Error())
+	}
+
 	response, err := mgr.GetJob(ctx, params)
 	if err != nil {
 		mgr.Logger.Error(err)
@@ -68,15 +78,26 @@ func (mgr *TimerecServer) CreateJobIfMissing(ctx context.Context, params SearchJ
 		return response, nil
 	}
 
-	new, err := mgr.StateProvider.CreateJob(api.NewJob(params.Name, params.Owner))
-	if err != nil {
-		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to create Job '%s'", params.Name)
+	new := api.NewJob(params.Name, params.Owner)
+	proverr := providers.CreateJob(&state, new)
+	if proverr != providers.ProviderOk {
+		return JobResponse{}, mgr.MakeNewResponseError(BadRequest, proverr, "Unable to create Job '%s'", params.Name)
 	}
+	err = mgr.StateProvider.Save(state.Partition, state)
+	if err != nil {
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to save Job '%s'", params.Name)
+	}
+
 	mgr.Logger.Infof("Created Job: %s", new.Name)
 	return JobResponse{Success: true, Created: true, Job: new}, nil
 }
 
 func (mgr *TimerecServer) UpdateJob(ctx context.Context, params UpdateJobParams) (JobResponse, error) {
+	state, err := mgr.StateProvider.Refresh(params.Owner)
+	if err != nil {
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to query Provider: %s", err.Error())
+	}
+
 	// Check if Job exists
 	response, err := mgr.GetJob(
 		ctx,
@@ -93,9 +114,9 @@ func (mgr *TimerecServer) UpdateJob(ctx context.Context, params UpdateJobParams)
 	// Update job according to Template
 	job := response.Job
 	if params.Template != "" {
-		templateExists, _ := mgr.TemplateProvider.HasTemplate(params.Template)
+		templateExists, _ := providers.HasTemplate(&state, params.Template)
 		if templateExists {
-			tmpl, _ := mgr.TemplateProvider.GetTemplate(params.Template)
+			tmpl, _ := providers.GetTemplate(&state, params.Template)
 			job.Update(api.Job{
 				RecordTemplate: tmpl,
 			})
@@ -114,15 +135,24 @@ func (mgr *TimerecServer) UpdateJob(ctx context.Context, params UpdateJobParams)
 		},
 	})
 
-	saved, err := mgr.StateProvider.UpdateJob(job)
+	proverr := providers.UpdateJob(&state, job)
+	if proverr != providers.ProviderOk {
+		return JobResponse{}, mgr.MakeNewResponseError(BadRequest, proverr, "Unable to update Job '%s'", job.Name)
+	}
+	err = mgr.StateProvider.Save(state.Partition, state)
 	if err != nil {
 		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to save Job '%s'", job.Name)
 	}
-	mgr.Logger.Infof("Updated Job: %s", saved.Name)
-	return JobResponse{Success: true, Created: false, Job: saved}, nil
+
+	mgr.Logger.Infof("Updated Job: %s", job.Name)
+	return JobResponse{Success: true, Created: false, Job: job}, nil
 }
 
 func (mgr *TimerecServer) CompleteJob(ctx context.Context, params CompleteJobParams) (JobResponse, error) {
+	state, err := mgr.StateProvider.Refresh(params.Owner)
+	if err != nil {
+		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to query Provider: %s", err.Error())
+	}
 	response, err := mgr.GetJob(
 		ctx,
 		params.SearchJobParams,
@@ -147,10 +177,11 @@ func (mgr *TimerecServer) CompleteJob(ctx context.Context, params CompleteJobPar
 		}
 	}
 
-	deleted, err := mgr.StateProvider.DeleteJob(Job)
-	if err != nil {
-		return JobResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to delete Job")
+	deleted, proverr := providers.DeleteJob(&state, Job)
+	if proverr != providers.ProviderOk {
+		return JobResponse{}, mgr.MakeNewResponseError(BadRequest, proverr, "Unable to delete Job")
 	}
+	err = mgr.StateProvider.Save(state.Partition, state)
 
 	mgr.Logger.Infof("Completed Job: %s", Job.Name)
 	return JobResponse{Success: true, Created: false, Job: deleted}, nil

@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
@@ -70,7 +71,7 @@ func (c *ClientObject) StartActivity(activityName string, comment string, start_
 		},
 	)
 	c.exitIfError(err, resp.Success, "Unable to StartActivity")
-	PrintActivity(resp.Activity)
+	fmt.Println(FormatActivity(resp.Activity))
 }
 
 func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment string, reset bool) {
@@ -85,7 +86,7 @@ func (c *ClientObject) ExtendActivity(estimate_duration time.Duration, comment s
 		},
 	)
 	c.exitIfError(err, resp.Success, "Unable to ExtendActivity")
-	PrintActivity(resp.Activity)
+	fmt.Println(FormatActivity(resp.Activity))
 }
 
 func (c *ClientObject) FinishActivity(taskName string, _activityName string, comment string, endDuration time.Duration) {
@@ -113,7 +114,7 @@ func (c *ClientObject) ActivityInfo() {
 		},
 	)
 	c.exitIfError(err, resp.Success, "Unable to GetActivity")
-	PrintActivity(resp.Activity)
+	fmt.Println(FormatActivity(resp.Activity))
 }
 
 func (c *ClientObject) EnsureJobkExists(name string) {

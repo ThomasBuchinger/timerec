@@ -19,12 +19,16 @@ type UserResponse struct {
 }
 
 func (mgr *TimerecServer) GetUser(ctx context.Context, params SearchUserParams) (UserResponse, error) {
-	user, err := mgr.StateProvider.GetUser(api.User{Name: params.Name})
-	if err == nil {
+	state, err := mgr.StateProvider.Refresh(params.Name)
+	if err != nil {
+		return UserResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to query Provider: %s", err.Error())
+	}
+	user, proverr := providers.GetUser(&state, api.User{Name: params.Name})
+	if proverr == providers.ProviderOk {
 		return UserResponse{Success: true, Created: false, User: user}, nil
 	}
 
-	if err.Error() == string(providers.ProviderErrorNotFound) {
+	if proverr == providers.ProviderNotFound {
 		return UserResponse{Success: false, Created: false}, nil
 	}
 
@@ -41,10 +45,20 @@ func (mgr *TimerecServer) CreateUserIfMissing(ctx context.Context, params Search
 		return resp, nil
 	}
 
-	new := api.NewDefaultUser(params.Name)
-	saved, err := mgr.StateProvider.CreateUser(new)
+	state, err := mgr.StateProvider.Refresh(params.Name)
 	if err != nil {
-		return UserResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to create user: %s", params.Name)
+		return UserResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to query Provider: %s", err.Error())
 	}
-	return UserResponse{Success: true, Created: true, User: saved}, nil
+
+	new := api.NewDefaultUser(params.Name)
+	proverr := providers.CreateUser(&state, new)
+	if proverr != providers.ProviderOk {
+		return UserResponse{}, mgr.MakeNewResponseError(ProviderError, proverr, "Unable to create user: %s", params.Name)
+	}
+	err = mgr.StateProvider.Save(state.Partition, state)
+	if err != nil {
+		return UserResponse{}, mgr.MakeNewResponseError(ProviderError, err, "Unable to save user: %s", params.Name)
+	}
+
+	return UserResponse{Success: true, Created: true, User: new}, nil
 }

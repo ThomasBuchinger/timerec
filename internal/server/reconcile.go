@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/thomasbuchinger/timerec/api"
+	"github.com/thomasbuchinger/timerec/internal/server/providers"
 )
 
 type ReconcileResult struct {
@@ -51,10 +52,16 @@ func (mgr *TimerecServer) ReconcileOnce(ctx context.Context) ReconcileResult {
 	// globalReconilers do not depend on a User
 	globalReconcilers := []func(context.Context) ReconcileResult{}
 
+	state, err := mgr.StateProvider.Refresh(providers.ScopeGlobal)
+	if err != nil {
+		return ReconcileResult{Requeue: false, Error: err}
+	}
+
 	// Start Reconcilers
 	var runningReconcilers int = 0
 	returns := make(chan ReconcileResult)
-	userList, _ := mgr.StateProvider.ListUsers()
+
+	userList, _ := providers.ListUsers(&state)
 	for _, f := range userReconcilers {
 		for _, user := range userList {
 			newCtx := context.WithValue(

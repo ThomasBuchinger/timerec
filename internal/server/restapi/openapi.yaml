@@ -217,6 +217,26 @@ paths:
         500:
           $ref: "#/components/responses/ErrorResponse"
 
+  /text/userStatus:
+    get:
+      summary: Get Pre-Formatted Text building Blocks
+      operationId: TextUserStatus
+      tags:
+        - Misc
+      parameters:
+        - name: user
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        200:
+          description: Plain Text User Status
+          content:
+            text/plain:
+              schema:
+                type: string
+
   /healthz:
     get:
       summary: Health Endpoint

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	cloudevents "github.com/cloudevents/sdk-go"
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"github.com/thomasbuchinger/timerec/api"
 	"github.com/thomasbuchinger/timerec/internal/server/providers"
@@ -11,48 +13,42 @@ import (
 )
 
 type TimerecServer struct {
-	Logger   zap.SugaredLogger
-	Settings TimerecServerConfig
+	Logger zap.SugaredLogger
 
-	StateProvider    State
-	TemplateProvider TemplateService
-	TimeProvider     TimeService
-	ChatProvider     NotificationService
+	StateProvider State
+	TimeProvider  TimeService
+	ChatProvider  NotificationService
 }
 
 type TimerecServerConfig struct {
-	Settings struct {
-		RoundTo         time.Duration
-		MissedWorkAlarm time.Duration
-		Weekdays        []string
-	}
+	File struct {
+		Enabled bool   `json:"enabled"`
+		Path    string `json:"path"`
+	} `json:"file,omitempty"`
+	Kubernetes struct {
+		Enabled    bool   `json:"enabled"`
+		KubeConfig string `json:"kube_config,omitempty"`
+	} `json:"kubernetes,omitempty"`
+	Clockodo struct {
+		Enabled bool `json:"enabled,omitempty"`
+	} `json:"clockodo,omitempty"`
+	RocketChatBridge struct {
+		Enabled bool `json:"enabled,omitempty"`
+	} `json:"rocket_chat_bridge,omitempty"`
 }
 
 type State interface {
-	ListUsers() ([]api.User, error)
-	GetUser(api.User) (api.User, error)
-	CreateUser(api.User) (api.User, error)
-	UpdateUser(api.User) (api.User, error)
-
-	CreateJob(api.Job) (api.Job, error)
-	ListJobs() ([]api.Job, error)
-	GetJob(api.Job) (api.Job, error)
-	UpdateJob(api.Job) (api.Job, error)
-	DeleteJob(api.Job) (api.Job, error)
+	Refresh(string) (providers.StateV2, error)
+	Save(string, providers.StateV2) error
 }
 
-type TemplateService interface {
-	GetTemplates() ([]api.RecordTemplate, error)
-	HasTemplate(string) (bool, error)
-	GetTemplate(string) (api.RecordTemplate, error)
-}
 type TimeService interface {
 	SaveRecord(api.Record) (api.Record, error)
 }
 type NotificationService interface {
 	// Different Services might have vastly different ideas how messages should look like
 	// Events aim to be a very generic interface
-	NotifyUser(api.Event) error
+	NotifyUser(cloudevents.Event) error
 }
 
 type ResponseError struct {
@@ -86,58 +82,55 @@ const (
 func NewServer() TimerecServer {
 	// logger, _ := zap.NewProduction()
 	logger, _ := zap.NewDevelopment()
+	server := TimerecServer{
+		Logger: *logger.Sugar(),
+	}
+
 	var settings TimerecServerConfig
 	err := viper.Unmarshal(&settings)
 	if err != nil {
 		logger.Warn(fmt.Sprintf("Config File invalid: %v", err))
 	}
-	SetDefaultConfig(&settings)
 
-	fileBackend := &providers.FileProvider{Path: "db.yaml"}
+	if settings.File.Enabled {
+		fileProvider := providers.NewFileProvider(settings.File.Path)
+		server.StateProvider = fileProvider
+		logger.Sugar().Debug("Using State: File")
 
-	var chatService NotificationService
-	var rocketConfig providers.RocketChatConfig
-	err = viper.UnmarshalKey("rocketchat", &rocketConfig)
-	if err == nil && rocketConfig.Url != "" {
-		rocket := providers.NewRocketChatMessenger(rocketConfig)
-		chatService = &rocket
-		logger.Sugar().Debug("Using RocketChat NotificationService")
+		server.TimeProvider = fileProvider
+		logger.Sugar().Debug("Using TimeService: File")
+	} else if settings.Kubernetes.Enabled {
+		kubernetesProvider, err := providers.NewKubernetesProvider(server.Logger, viper.GetString("kubernetes.kubeconfig"))
+		if err != nil {
+			panic(err)
+		}
+		server.StateProvider = kubernetesProvider
+		logger.Sugar().Debug("Using State: Kubernetes")
+
+		server.TimeProvider = kubernetesProvider
+		logger.Sugar().Debug("Using TimeService: Kubernetes")
 	} else {
-		chatService = providers.NewMemoryProvider()
-		logger.Sugar().Debug("Using Noop NotificationService")
+		server.StateProvider = providers.NewMemoryProvider()
+		logger.Sugar().Debug("Using State: Memory")
+
+		server.TimeProvider = providers.NewMemoryProvider()
+		logger.Sugar().Debug("Using TimeService: Memory")
 	}
 
-	return TimerecServer{
-		Logger:   *logger.Sugar(),
-		Settings: settings,
+	server.ChatProvider = providers.NewMemoryProvider()
+	logger.Sugar().Debug("Using Chat: Memory")
 
-		StateProvider:    fileBackend,
-		TimeProvider:     fileBackend,
-		TemplateProvider: fileBackend,
-		ChatProvider:     chatService,
-	}
+	return server
 }
 
-func MakeEvent(name, message, target, user string) api.Event {
-	return api.Event{
-		Name:    name,
-		Message: message,
-		Target:  target,
-		User:    "me",
-	}
-}
+func MakeEvent(name, message, target, user string) cloudevents.Event {
+	ev := cloudevents.NewEvent()
+	ev.SetSpecVersion(cloudevents.VersionV1)
+	ev.SetType("sh.buc.ChatMessage.Send")
+	ev.SetSource("timerec")
+	ev.SetSubject(user)
+	ev.SetID(uuid.New().String())
+	ev.SetTime(time.Now())
 
-func SetDefaultConfig(s *TimerecServerConfig) {
-	if s.Settings.RoundTo == time.Duration(0) {
-		dur15m, _ := time.ParseDuration("15m")
-		s.Settings.RoundTo = dur15m
-	}
-	if len(s.Settings.Weekdays) == 0 {
-		s.Settings.Weekdays = []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday"}
-	}
-	if s.Settings.MissedWorkAlarm == time.Duration(0) {
-		noon, _ := time.ParseDuration("12h")
-		s.Settings.MissedWorkAlarm = noon
-	}
-
+	return ev
 }

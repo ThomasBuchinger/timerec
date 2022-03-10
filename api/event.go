@@ -6,3 +6,8 @@ type Event struct {
 	Target  string
 	User    string
 }
+
+type Message struct {
+	Message string
+	User    string
+}

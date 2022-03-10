@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: timerec-cm
+  labels:
+    app.kubernetes.io/name: timerec
+    timerec.buc.sh/schema: v1
+    timerec.buc.sh/type: config
+data:
+  timerec-config.yaml: |
+    kubernetes:
+      enabled: true
+    file:
+      enabled: false

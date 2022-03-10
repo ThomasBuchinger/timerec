@@ -14,7 +14,10 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/swaggest/swgui/v3cdn"
 
+	"github.com/thomasbuchinger/timerec/api"
+	"github.com/thomasbuchinger/timerec/internal/client"
 	"github.com/thomasbuchinger/timerec/internal/server"
+	"github.com/thomasbuchinger/timerec/internal/server/providers"
 )
 
 //go:embed openapi.yaml
@@ -30,6 +33,7 @@ func Run(mgr *server.TimerecServer) {
 	r.Use(middleware.Timeout(60 * time.Second))
 
 	mountUtils(r)
+	mountTextApi(r, mgr)
 	mountUserApi(r, mgr)
 	mountActivityApi(r, mgr)
 	mountJobApi(r, mgr)
@@ -198,6 +202,70 @@ func ObjectToJsonBytes(ctx context.Context, rw http.ResponseWriter, obj interfac
 		return
 	}
 	rw.Write(bytes)
+}
+
+func mountTextApi(r *chi.Mux, mgr *server.TimerecServer) {
+	txtapi := chi.NewRouter()
+	txtapi.Use(middleware.AllowContentType("text/plain"))
+	txtapi.Use(middleware.SetHeader("Content-Type", "text/plain"))
+
+	txtapi.Get("/text/userStatus", func(rw http.ResponseWriter, r *http.Request) {
+		state, err1 := mgr.StateProvider.Refresh(r.URL.Query().Get("user"))
+		if err1 != nil {
+			rw.WriteHeader(500)
+			return
+		}
+		user, err2 := providers.GetUser(&state, api.User{Name: r.URL.Query().Get("user")})
+		jobs, err3 := providers.ListJobs(&state)
+		if err2 == providers.ProviderNotFound {
+			rw.WriteHeader(404)
+			return
+		}
+		if err3 != providers.ProviderOk {
+			rw.WriteHeader(500)
+			return
+		}
+
+		text := client.FormatUserStatus(user, jobs)
+		rw.Write([]byte(text))
+		rw.WriteHeader(200)
+	})
+
+	txtapi.Get("/text/day", func(rw http.ResponseWriter, r *http.Request) {
+		state, err1 := mgr.StateProvider.Refresh(r.URL.Query().Get("user"))
+		if err1 != nil {
+			rw.WriteHeader(500)
+			return
+		}
+		user, err2 := providers.GetUser(&state, api.User{Name: r.URL.Query().Get("user")})
+		jobs, err3 := providers.ListJobs(&state)
+		if err2 != providers.ProviderOk {
+			rw.WriteHeader(500)
+			return
+		}
+		if err3 != providers.ProviderOk {
+			rw.WriteHeader(500)
+			return
+		}
+
+		text := client.FormatUserStatus(user, jobs)
+		rw.Write([]byte(text))
+		rw.WriteHeader(200)
+	})
+
+	txtapi.Get("/text/week", func(rw http.ResponseWriter, r *http.Request) {
+
+		// | Day       | Time    | Tasks (max 200 chars)                                              |
+		// |-----------|---------|--------------------------------------------------------------------|
+		// | Sunday    |  0h  0m | Fix Jira 123, Migrate databases to Operator, Deploy Argo Workflows |
+		// | Monday    |  6h  0m | Fix Jira 123, Migrate databases to Operator, Deploy Argo Workflows |
+		// | Tuesday   |  5h 43m | Fix Jira 123, Migrate databases to Operator, Deploy Argo Workflows |
+
+		text := "TODO"
+		rw.Write([]byte(text))
+		rw.WriteHeader(200)
+	})
+	r.Mount("/", txtapi)
 }
 
 func mountUtils(r *chi.Mux) {

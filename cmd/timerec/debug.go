@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/thomasbuchinger/timerec/api"
 	"github.com/thomasbuchinger/timerec/internal/server"
+	"github.com/thomasbuchinger/timerec/internal/server/providers"
 	"gopkg.in/yaml.v2"
 )
 
@@ -16,19 +16,19 @@ var debugCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		embeddedServer := server.NewServer()
 		var response interface{}
-		var err error
-
-		switch args[0] {
-		case "user":
-			response, err = embeddedServer.StateProvider.GetUser(api.User{Name: "me"})
-		case "jobs":
-			response, err = embeddedServer.StateProvider.ListJobs()
-		case "templates":
-			response, err = embeddedServer.TemplateProvider.GetTemplates()
-		}
+		state, err := embeddedServer.StateProvider.Refresh("me")
 		if err != nil {
 			fmt.Println(err)
 			return
+		}
+
+		switch args[0] {
+		case "user":
+			response, err = providers.ListUsers(&state)
+		case "jobs":
+			response, err = providers.ListJobs(&state)
+		case "templates":
+			response, err = providers.ListTemplates(&state)
 		}
 		data, err := yaml.Marshal(response)
 		if err != nil {

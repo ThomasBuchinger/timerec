@@ -1,0 +1,62 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timerec-api
+  labels:
+    app.kubernetes.io/name: timerec
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: timerec
+  serviceName: timerec-api
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: timerec
+    spec:
+      serviceAccountName: timerec-sa
+      containers:
+      - name: timerec-server
+        image: thomasbuchinger/timerec:0.2.0
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: WATCH_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+        ports:
+        - name: http
+          containerPort: 8080
+        resources:
+          requests:
+            memory: "10Mi"  # Check metrics
+            cpu: "1m"
+          limits:
+            memory: "20Mi"
+            cpu: "10m"
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
+          failureThreshold: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 60
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          failureThreshold: 3
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 60
+        volumeMounts:
+        - name: config
+          mountPath: /
+      volumes:
+        - name: config
+          configMap:
+            name: timerec-cm
+
