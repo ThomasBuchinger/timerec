@@ -148,7 +148,7 @@ func (mgr *TimerecServer) reconcileTimer(ctx context.Context) ReconcileResult {
 	}
 
 	// Timer expired
-	event := MakeEvent("TIMER_EXPIRED", "Estimated time expired", "activity@"+user.Activity.ActivityName, "me")
+	event := api.MakeMessageEvent(api.EventTypeTimerExpired, "Estimated time expired", "activity@"+user.Activity.ActivityName, "me")
 	err2 := mgr.ChatProvider.NotifyUser(event)
 	if err2 != nil {
 		return ReconcileResult{Error: err2}
@@ -183,14 +183,18 @@ func (mgr *TimerecServer) reconcileBegin(ctx context.Context) ReconcileResult {
 	}
 
 	// We are past the alarm. Did we started working already?
-	// TODO implement Work Check
+	err := user.Activity.CheckNoActivityActive()
+	if err != nil {
+		return ReconcileResult{Ok: true}
+	}
 
-	event := MakeEvent("NO_ENTRY_ALARM", "No work logged today!", "activity@none", "me")
-	err := mgr.ChatProvider.NotifyUser(event)
+	event := api.MakeMessageEvent(api.EventTypeNoEntryAlarm, "No work logged today!", "activity@none", "me")
+	err = mgr.ChatProvider.NotifyUser(event)
 	if err != nil {
 		return ReconcileResult{Error: err}
 	}
-	return ReconcileResult{Ok: true}
+	snooze, _ := time.ParseDuration("15m") // doesn't do anything, because the default interval is 5m anyway
+	return ReconcileResult{Ok: true, Requeue: true, RetryAfter: snooze}
 }
 
 // func (mgr *TimerecServer) reconcileTest(_ context.Context) ReconcileResult {

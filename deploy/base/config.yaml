@@ -12,3 +12,6 @@ data:
       enabled: true
     file:
       enabled: false
+    rocket_chat_bridge
+      enabled: true
+      url: http://rocketchat-bridge/events

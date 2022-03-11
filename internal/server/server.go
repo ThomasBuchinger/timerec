@@ -2,10 +2,8 @@ package server
 
 import (
 	"fmt"
-	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
-	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"github.com/thomasbuchinger/timerec/api"
 	"github.com/thomasbuchinger/timerec/internal/server/providers"
@@ -82,8 +80,12 @@ const (
 func NewServer() TimerecServer {
 	// logger, _ := zap.NewProduction()
 	logger, _ := zap.NewDevelopment()
+	defaultProvider := providers.NewMemoryProvider()
 	server := TimerecServer{
-		Logger: *logger.Sugar(),
+		Logger:        *logger.Sugar(),
+		StateProvider: defaultProvider,
+		TimeProvider:  defaultProvider,
+		ChatProvider:  defaultProvider,
 	}
 
 	var settings TimerecServerConfig
@@ -92,6 +94,7 @@ func NewServer() TimerecServer {
 		logger.Warn(fmt.Sprintf("Config File invalid: %v", err))
 	}
 
+	// Configure File Provider
 	if settings.File.Enabled {
 		fileProvider := providers.NewFileProvider(settings.File.Path)
 		server.StateProvider = fileProvider
@@ -99,7 +102,10 @@ func NewServer() TimerecServer {
 
 		server.TimeProvider = fileProvider
 		logger.Sugar().Debug("Using TimeService: File")
-	} else if settings.Kubernetes.Enabled {
+	}
+
+	// Configure Kubernetes Provider
+	if settings.Kubernetes.Enabled {
 		kubernetesProvider, err := providers.NewKubernetesProvider(server.Logger, viper.GetString("kubernetes.kubeconfig"))
 		if err != nil {
 			panic(err)
@@ -109,28 +115,14 @@ func NewServer() TimerecServer {
 
 		server.TimeProvider = kubernetesProvider
 		logger.Sugar().Debug("Using TimeService: Kubernetes")
-	} else {
-		server.StateProvider = providers.NewMemoryProvider()
-		logger.Sugar().Debug("Using State: Memory")
-
-		server.TimeProvider = providers.NewMemoryProvider()
-		logger.Sugar().Debug("Using TimeService: Memory")
 	}
 
-	server.ChatProvider = providers.NewMemoryProvider()
-	logger.Sugar().Debug("Using Chat: Memory")
+	// Configure RocketChatBridge Provider
+	if settings.RocketChatBridge.Enabled {
+		webhookProvider, _ := providers.NewEventProvider(viper.GetString("rocket_chat_bridge.url"))
+		server.ChatProvider = webhookProvider
+		logger.Sugar().Debug("Using Chat: RocketChatBridge")
+	}
 
 	return server
-}
-
-func MakeEvent(name, message, target, user string) cloudevents.Event {
-	ev := cloudevents.NewEvent()
-	ev.SetSpecVersion(cloudevents.VersionV1)
-	ev.SetType("sh.buc.ChatMessage.Send")
-	ev.SetSource("timerec")
-	ev.SetSubject(user)
-	ev.SetID(uuid.New().String())
-	ev.SetTime(time.Now())
-
-	return ev
 }
