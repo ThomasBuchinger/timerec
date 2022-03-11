@@ -3,6 +3,6 @@ kind: Kustomization
 
 resources:
   - config.yaml
-  - "deployment.yaml"
-  - "network.yaml"
-  - "rbac.yaml"
+  - deployment.yaml
+  - network.yaml
+  - rbac.yaml
