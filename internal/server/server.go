@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	cloudevents "github.com/cloudevents/sdk-go"
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
 	"github.com/thomasbuchinger/timerec/api"

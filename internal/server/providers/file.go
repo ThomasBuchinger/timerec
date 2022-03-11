@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cloudevents/sdk-go/pkg/cloudevents"
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/thomasbuchinger/timerec/api"
 	"gopkg.in/yaml.v2"
 )

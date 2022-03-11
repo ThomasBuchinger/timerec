@@ -20,8 +20,8 @@ spec:
       serviceAccountName: timerec-sa
       containers:
       - name: timerec-server
-        image: ghcr.io/thomasbuchinger/timerec:0.2.0
-        imagePullPolicy: IfNotPresent
+        image: ghcr.io/thomasbuchinger/timerec:main
+        imagePullPolicy: Always
         env:
           - name: WATCH_NAMESPACE
             valueFrom:
