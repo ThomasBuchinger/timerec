@@ -25,6 +25,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.namespace
         args:
+          - "/timerec-server"
           - "--config"
           - "/conf/timerec-config.yaml"
         ports:
