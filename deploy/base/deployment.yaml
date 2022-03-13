@@ -3,21 +3,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: timerec-api
-  namesapce: default
   labels:
     app.kubernetes.io/name: timerec
 spec:
   selector:
     matchLabels:
       app.kubernetes.io/name: timerec
-  serviceName: timerec-api
   replicas: 1
   template:
     metadata:
       labels:
         app.kubernetes.io/name: timerec
     spec:
-      serviceAccountName: timerec-sa
       containers:
       - name: timerec-server
         image: ghcr.io/thomasbuchinger/timerec:main
@@ -27,6 +24,10 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
+        args:
+          - "/timerec-server"
+          - "--config"
+          - "/conf/timerec-config.yaml"
         ports:
         - name: http
           containerPort: 8080
@@ -55,9 +56,22 @@ spec:
           timeoutSeconds: 60
         volumeMounts:
         - name: config
-          mountPath: /
+          mountPath: /conf/
+      serviceAccountName: timerec-sa
       volumes:
         - name: config
           configMap:
             name: timerec-cm
 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timerec
+spec:
+  selector:
+      app.kubernetes.io/name: timerec
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
