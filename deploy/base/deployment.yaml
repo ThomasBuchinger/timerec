@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: timerec-server
-        image: ghcr.io/thomasbuchinger/timerec:deploy
+        image: ghcr.io/thomasbuchinger/timerec:main
         imagePullPolicy: Always
         env:
           - name: WATCH_NAMESPACE
