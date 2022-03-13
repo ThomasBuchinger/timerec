@@ -17,13 +17,16 @@ spec:
     spec:
       containers:
       - name: timerec-server
-        image: ghcr.io/thomasbuchinger/timerec:main
+        image: ghcr.io/thomasbuchinger/timerec:deploy
         imagePullPolicy: Always
         env:
           - name: WATCH_NAMESPACE
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace
+        args:
+          - "--config"
+          - "/conf/timerec-config.yaml"
         ports:
         - name: http
           containerPort: 8080
@@ -52,8 +55,7 @@ spec:
           timeoutSeconds: 60
         volumeMounts:
         - name: config
-          mountPath: /
-          subPath: timerec-config.yaml
+          mountPath: /conf/
       serviceAccountName: timerec-sa
       volumes:
         - name: config
