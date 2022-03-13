@@ -53,6 +53,7 @@ spec:
         volumeMounts:
         - name: config
           mountPath: /
+          subPath: timerec-config.yaml
       serviceAccountName: timerec-sa
       volumes:
         - name: config
