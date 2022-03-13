@@ -3,7 +3,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: timerec-api
-  namesapce: default
   labels:
     app.kubernetes.io/name: timerec
 spec:
@@ -61,3 +60,15 @@ spec:
           configMap:
             name: timerec-cm
 
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timerec
+spec:
+  selector:
+      app.kubernetes.io/name: timerec
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
