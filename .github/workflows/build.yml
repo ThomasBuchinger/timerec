@@ -2,7 +2,7 @@
 name: container-image
 on:
   push:
-    branches: [ $default-branch ]
+    branches: [ main ]
     tags: [ 'v*' ]
   pull_request: {}
 
