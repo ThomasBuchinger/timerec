@@ -62,11 +62,10 @@ func initConfig() {
 		viper.SetConfigName(".timerec")
 		viper.SetConfigName("timerec-config")
 	}
+	viper.RegisterAlias("kubeconfig", "kubernetes.kubeconfig")
+	viper.SetDefault("Listen", ":8080")
 
 	viper.AutomaticEnv() // read in environment variables that match
-	viper.RegisterAlias("kubeconfig", "kubernetes.kubeconfig")
-
-	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}

@@ -15,7 +15,8 @@ COPY Makefile README.md ./
 RUN make test
 RUN go install ./...
 
-FROM alpine:latest as debug
+FROM golang:1.17 as debug
+RUN go install github.com/go-delve/delve/cmd/dlv@latest
 COPY --from=builder /db.yaml /
 COPY --from=builder /go/bin/* /
 CMD ["/timerec-server"]

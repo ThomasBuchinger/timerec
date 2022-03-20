@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"time"
 
 	chiprometheus "github.com/766b/chi-prometheus"
@@ -38,7 +39,12 @@ func Run(mgr *server.TimerecServer) {
 	mountActivityApi(r, mgr)
 	mountJobApi(r, mgr)
 
-	http.ListenAndServe(":8080", r)
+	mgr.Logger.Infof("Started Webserver on %s", mgr.BindAddress)
+	err := http.ListenAndServe(mgr.BindAddress, r)
+	if err != nil {
+		mgr.Logger.Errorf("cannot start Server: %v", err)
+		os.Exit(1)
+	}
 }
 
 func mountUserApi(r *chi.Mux, mgr *server.TimerecServer) {

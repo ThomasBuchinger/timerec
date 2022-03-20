@@ -11,7 +11,8 @@ import (
 )
 
 type TimerecServer struct {
-	Logger zap.SugaredLogger
+	Logger      zap.SugaredLogger
+	BindAddress string
 
 	StateProvider State
 	TimeProvider  TimeService
@@ -19,7 +20,8 @@ type TimerecServer struct {
 }
 
 type TimerecServerConfig struct {
-	File struct {
+	Listen string `json:"listen,omitempty"`
+	File   struct {
 		Enabled bool   `json:"enabled"`
 		Path    string `json:"path"`
 	} `json:"file,omitempty"`
@@ -93,6 +95,7 @@ func NewServer() TimerecServer {
 	if err != nil {
 		logger.Warn(fmt.Sprintf("Config File invalid: %v", err))
 	}
+	server.BindAddress = settings.Listen
 
 	// Configure File Provider
 	if settings.File.Enabled {
