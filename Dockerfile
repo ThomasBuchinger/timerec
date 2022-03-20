@@ -15,6 +15,11 @@ COPY Makefile README.md ./
 RUN make test
 RUN go install ./...
 
+FROM alpine:latest as debug
+COPY --from=builder /db.yaml /
+COPY --from=builder /go/bin/* /
+CMD ["/timerec-server"]
+
 FROM scratch AS app
 EXPOSE 8080
 USER 1000
