@@ -12,5 +12,5 @@ data:
       enabled: true
     kubernetes:
       enabled: false
-    rocket_chat_bridge
+    rocket_chat_bridge:
       enabled: false

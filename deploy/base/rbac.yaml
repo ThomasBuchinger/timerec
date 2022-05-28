@@ -5,7 +5,7 @@ metadata:
   name: timerec-server
 rules:
 - apiGroups: [""]
-  resources: ["configmap"]
+  resources: ["configmaps"]
   verbs: ["*"]
 
 ---
