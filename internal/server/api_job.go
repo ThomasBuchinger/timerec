@@ -182,6 +182,9 @@ func (mgr *TimerecServer) CompleteJob(ctx context.Context, params CompleteJobPar
 		return JobResponse{}, mgr.MakeNewResponseError(BadRequest, proverr, "Unable to delete Job")
 	}
 	err = mgr.StateProvider.Save(state.Partition, state)
+	if err != nil {
+		return JobResponse{}, mgr.MakeNewResponseError(ServerError, err, "Unable to save state")
+	}
 
 	mgr.Logger.Infof("Completed Job: %s", Job.Name)
 	return JobResponse{Success: true, Created: false, Job: deleted}, nil

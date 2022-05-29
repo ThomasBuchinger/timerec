@@ -217,9 +217,18 @@ func PartitionToSelector(partition string) labels.Selector {
 }
 
 func (kube *KubernetesProvider) SaveRecord(rec api.Record) (api.Record, error) {
-	state, _ := kube.Refresh(rec.UserName)
+	state, err := kube.Refresh(rec.UserName)
+	if err != nil {
+		kube.logger.Errorf("Error refreshing Record: %v", err)
+		return api.Record{}, err
+	}
+
 	state.Records = append(state.Records, rec)
-	kube.Save(rec.UserName, state)
+	err = kube.Save(rec.UserName, state)
+	if err != nil {
+		kube.logger.Errorf("Error saving Record: %v", err)
+		return api.Record{}, err
+	}
 	return rec, nil
 }
 

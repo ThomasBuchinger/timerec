@@ -26,9 +26,8 @@ var openapiContent []byte
 
 func Run(mgr *server.TimerecServer) {
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
-	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
+	r.Use(middleware.Recoverer)
 	r.Use(chiprometheus.NewMiddleware("timerec", 10, 50, 100, 1000, 5000))
 
 	r.Use(middleware.Timeout(60 * time.Second))
@@ -49,6 +48,7 @@ func Run(mgr *server.TimerecServer) {
 
 func mountUserApi(r *chi.Mux, mgr *server.TimerecServer) {
 	api := chi.NewRouter()
+	api.Use(middleware.Logger)
 	api.Use(middleware.AllowContentType("application/json"))
 	api.Use(middleware.SetHeader("Content-Type", "application/json"))
 
@@ -74,6 +74,7 @@ func mountUserApi(r *chi.Mux, mgr *server.TimerecServer) {
 
 func mountActivityApi(r *chi.Mux, mgr *server.TimerecServer) {
 	api := chi.NewRouter()
+	api.Use(middleware.Logger)
 	api.Use(middleware.AllowContentType("application/json"))
 	api.Use(middleware.SetHeader("Content-Type", "application/json"))
 
@@ -125,6 +126,7 @@ func mountActivityApi(r *chi.Mux, mgr *server.TimerecServer) {
 
 func mountJobApi(r *chi.Mux, mgr *server.TimerecServer) {
 	api := chi.NewRouter()
+	api.Use(middleware.Logger)
 	api.Use(middleware.AllowContentType("application/json"))
 	api.Use(middleware.SetHeader("Content-Type", "application/json"))
 
@@ -212,6 +214,7 @@ func ObjectToJsonBytes(ctx context.Context, rw http.ResponseWriter, obj interfac
 
 func mountTextApi(r *chi.Mux, mgr *server.TimerecServer) {
 	txtapi := chi.NewRouter()
+	txtapi.Use(middleware.Logger)
 	txtapi.Use(middleware.AllowContentType("text/plain"))
 	txtapi.Use(middleware.SetHeader("Content-Type", "text/plain"))
 
