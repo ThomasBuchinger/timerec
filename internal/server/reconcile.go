@@ -148,7 +148,7 @@ func (mgr *TimerecServer) reconcileTimer(ctx context.Context) ReconcileResult {
 	}
 
 	// Timer expired
-	event := api.MakeMessageEvent(api.EventTypeTimerExpired, "Estimated time expired", "activity@"+user.Activity.ActivityName, "me")
+	event := api.MakeMessageEvent(api.EventTypeTimerExpired, "Estimated time expired", "activity@"+user.Activity.ActivityName, user.Name)
 	err2 := mgr.ChatProvider.NotifyUser(event)
 	if err2 != nil {
 		return ReconcileResult{Error: err2}

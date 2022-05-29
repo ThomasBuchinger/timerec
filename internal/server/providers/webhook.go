@@ -19,7 +19,7 @@ func NewEventProvider(url string) (*EventProvider, error) {
 }
 
 func (prov *EventProvider) NotifyUser(ev cloudevents.Event) error {
-	client, err := cloudevents.NewClientHTTP(http.WithPath("/events"), http.WithTarget("http://rocketchat-bridge/"))
+	client, err := cloudevents.NewClientHTTP(http.WithTarget(prov.Sink))
 	if err != nil {
 		return err
 	}
