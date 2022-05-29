@@ -177,6 +177,7 @@ func (mgr *TimerecServer) CompleteJob(ctx context.Context, params CompleteJobPar
 		}
 	}
 
+	state, _ = mgr.StateProvider.Refresh(params.Owner) // Refresh State, because the time provider might have changed the state-file
 	deleted, proverr := providers.DeleteJob(&state, Job)
 	if proverr != providers.ProviderOk {
 		return JobResponse{}, mgr.MakeNewResponseError(BadRequest, proverr, "Unable to delete Job")
