@@ -115,7 +115,7 @@ func (mgr *TimerecServer) runReconcile(ctx context.Context, c chan ReconcileResu
 		c <- ReconcileResult{Ok: false, Requeue: false}
 		return
 	default:
-		// Log Errurs
+		// Log Errors
 		if !result.Ok && result.Error == nil {
 			logger.Infof("function returned NOT Ok, but returned no error %s", funcName)
 		}

@@ -10,17 +10,17 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 )
 
-type EventProvider struct {
+type WebhookProvider struct {
 	Sink string
 }
 
-func NewEventProvider(url string) (*EventProvider, error) {
-	return &EventProvider{
+func NewWebhookProvider(url string) (*WebhookProvider, error) {
+	return &WebhookProvider{
 		Sink: url,
 	}, nil
 }
 
-func (prov *EventProvider) NotifyUser(ev cloudevents.Event) error {
+func (prov *WebhookProvider) NotifyUser(ev cloudevents.Event) error {
 	jsonBytes, _ := ev.MarshalJSON()
 
 	log.Printf("Sending Cloudevent to '%s'. Data: %s \n", prov.Sink, jsonBytes)

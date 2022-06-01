@@ -32,9 +32,9 @@ type TimerecServerConfig struct {
 	Clockodo struct {
 		Enabled bool `json:"enabled,omitempty"`
 	} `json:"clockodo,omitempty"`
-	RocketChatBridge struct {
+	Webhook struct {
 		Enabled bool `json:"enabled,omitempty"`
-	} `json:"rocket_chat_bridge,omitempty"`
+	} `json:"webhook,omitempty"`
 }
 
 type State interface {
@@ -121,10 +121,10 @@ func NewServer() TimerecServer {
 	}
 
 	// Configure RocketChatBridge Provider
-	if settings.RocketChatBridge.Enabled {
-		webhookProvider, _ := providers.NewEventProvider(viper.GetString("rocket_chat_bridge.url"))
+	if settings.Webhook.Enabled {
+		webhookProvider, _ := providers.NewWebhookProvider(viper.GetString("webhook.url"))
 		server.ChatProvider = webhookProvider
-		logger.Sugar().Debug("Using Chat: RocketChatBridge")
+		logger.Sugar().Debug("Using Chat: Webhook")
 	}
 
 	return server
