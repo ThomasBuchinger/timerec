@@ -24,7 +24,7 @@ func (prov *WebhookProvider) NotifyUser(ev cloudevents.Event) error {
 	jsonBytes, _ := ev.MarshalJSON()
 
 	log.Printf("Sending Cloudevent to '%s'. Data: %s \n", prov.Sink, jsonBytes)
-	resp, err := http.Post(prov.Sink, "application/json", bytes.NewBuffer(jsonBytes))
+	resp, err := http.Post(prov.Sink, "application/cloudevents+json", bytes.NewBuffer(jsonBytes))
 	if err != nil {
 		log.Printf("Failed to send CloudEvent: %v\n", err)
 		return err
