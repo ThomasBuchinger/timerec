@@ -188,7 +188,7 @@ func (mgr *TimerecServer) reconcileBegin(ctx context.Context) ReconcileResult {
 		return ReconcileResult{Ok: true}
 	}
 
-	event := api.MakeMessageEvent(api.EventTypeNoEntryAlarm, "No work logged today!", "activity@none", "me")
+	event := api.MakeMessageEvent(api.EventTypeNoEntryAlarm, "No work logged today!", "activity@none", user.Name)
 	err = mgr.ChatProvider.NotifyUser(event)
 	if err != nil {
 		return ReconcileResult{Error: err}
